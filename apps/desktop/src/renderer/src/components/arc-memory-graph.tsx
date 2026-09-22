@@ -1,3 +1,5 @@
+import { t } from '../store/locale'
+import { Tr } from '../store/locale'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import 'pixi.js/unsafe-eval'
 import {
@@ -515,12 +517,21 @@ export function ArcMemoryGraph({
     }
   }, [graph, query])
 
-  if (loading) return <div className="arc-graph-empty">BUILDING CORTEX GRAPH…</div>
+  if (loading)
+    return (
+      <div className="arc-graph-empty">
+        <Tr text={'BUILDING CORTEX GRAPH…'} />
+      </div>
+    )
   if (graph.nodes.length === 0) {
     return (
       <div className="arc-graph-empty">
-        <span>NO GRAPH YET</span>
-        <small>Memories and explicit relationships will form the graph as Marvi learns.</small>
+        <span>
+          <Tr text={'NO GRAPH YET'} />
+        </span>
+        <small>
+          <Tr text={'Memories and explicit relationships will form the graph as Marvi learns.'} />
+        </small>
       </div>
     )
   }
@@ -542,18 +553,22 @@ export function ArcMemoryGraph({
     <div className="arc-graph-frame" onMouseLeave={() => setHovered(null)}>
       <header className="arc-graph-header">
         <div className="arc-graph-counts">
-          <span>{shown.nodes.length} NODES</span>
+          <span>
+            {shown.nodes.length} <Tr text={'NODES'} before />
+          </span>
           <i>·</i>
-          <span>{shown.edges.length} LINKS</span>
+          <span>
+            {shown.edges.length} <Tr text={'LINKS'} before />
+          </span>
         </div>
         <input
           className="arc-graph-search"
           type="search"
-          placeholder="Search the graph"
+          placeholder={t('Search the graph')}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
-        <div className="arc-graph-legend" aria-label="Graph legend">
+        <div className="arc-graph-legend" aria-label={t('Graph legend')}>
           {legend.map(([label, kind]) => (
             <span key={label}>
               <i className={`arc-graph-key arc-graph-node-${kind}`} /> {label}
@@ -564,10 +579,10 @@ export function ArcMemoryGraph({
             aria-pressed={showSettings}
             onClick={() => setShowSettings((open) => !open)}
           >
-            <Settings2 aria-hidden="true" /> FORCES
+            <Settings2 aria-hidden="true" /> <Tr text={'FORCES'} before after />
           </button>
           <button type="button" onClick={() => setResetEpoch((value) => value + 1)}>
-            <RotateCcw aria-hidden="true" /> RESET VIEW
+            <RotateCcw aria-hidden="true" /> <Tr text={'RESET VIEW'} before after />
           </button>
         </div>
       </header>
@@ -575,7 +590,7 @@ export function ArcMemoryGraph({
       {showSettings ? (
         <div className="arc-graph-settings">
           <Force
-            label="Center force"
+            label={t('Center force')}
             value={settings.centerForce}
             min={0}
             max={0.3}
@@ -583,7 +598,7 @@ export function ArcMemoryGraph({
             onChange={(centerForce) => setSettings((now) => ({ ...now, centerForce }))}
           />
           <Force
-            label="Repel force"
+            label={t('Repel force')}
             value={settings.repelForce}
             min={10}
             max={400}
@@ -591,7 +606,7 @@ export function ArcMemoryGraph({
             onChange={(repelForce) => setSettings((now) => ({ ...now, repelForce }))}
           />
           <Force
-            label="Link force"
+            label={t('Link force')}
             value={settings.linkForce}
             min={0}
             max={1}
@@ -599,7 +614,7 @@ export function ArcMemoryGraph({
             onChange={(linkForce) => setSettings((now) => ({ ...now, linkForce }))}
           />
           <Force
-            label="Link distance"
+            label={t('Link distance')}
             value={settings.linkDistance}
             min={20}
             max={220}
@@ -607,7 +622,7 @@ export function ArcMemoryGraph({
             onChange={(linkDistance) => setSettings((now) => ({ ...now, linkDistance }))}
           />
           <Force
-            label="Node size"
+            label={t('Node size')}
             value={settings.nodeSize}
             min={0.4}
             max={2.4}
@@ -615,7 +630,7 @@ export function ArcMemoryGraph({
             onChange={(nodeSize) => setSettings((now) => ({ ...now, nodeSize }))}
           />
           <Force
-            label="Link thickness"
+            label={t('Link thickness')}
             value={settings.linkThickness}
             min={0.3}
             max={3}
@@ -623,7 +638,7 @@ export function ArcMemoryGraph({
             onChange={(linkThickness) => setSettings((now) => ({ ...now, linkThickness }))}
           />
           <Force
-            label="Text fade"
+            label={t('Text fade')}
             value={settings.textFade}
             min={0.1}
             max={2.5}
@@ -631,7 +646,9 @@ export function ArcMemoryGraph({
             onChange={(textFade) => setSettings((now) => ({ ...now, textFade }))}
           />
           <label className="arc-graph-force arc-graph-toggle">
-            <span>Tidy labels</span>
+            <span>
+              <Tr text={'Tidy labels'} />
+            </span>
             <input
               type="checkbox"
               checked={settings.declutter}
@@ -641,7 +658,9 @@ export function ArcMemoryGraph({
             />
           </label>
           <label className="arc-graph-force arc-graph-toggle">
-            <span>Arrows</span>
+            <span>
+              <Tr text={'Arrows'} />
+            </span>
             <input
               type="checkbox"
               checked={settings.showArrows}
@@ -651,7 +670,9 @@ export function ArcMemoryGraph({
             />
           </label>
           <label className="arc-graph-force arc-graph-toggle">
-            <span>Orphans</span>
+            <span>
+              <Tr text={'Orphans'} />
+            </span>
             <input
               type="checkbox"
               checked={settings.showOrphans}
@@ -661,7 +682,7 @@ export function ArcMemoryGraph({
             />
           </label>
           <button type="button" onClick={() => setSettings(DEFAULT_GRAPH_SETTINGS)}>
-            Defaults
+            <Tr text={'Defaults'} />
           </button>
         </div>
       ) : null}
@@ -680,14 +701,21 @@ export function ArcMemoryGraph({
             <strong>{(hovered ?? selected)?.label}</strong>
             <span>{(hovered ?? selected)?.kind.toUpperCase()}</span>
             {(hovered ?? selected)?.provenance ? (
-              <span>SOURCE / {(hovered ?? selected)?.provenance}</span>
+              <span>
+                <Tr text={'SOURCE /'} after />
+                {(hovered ?? selected)?.provenance}
+              </span>
             ) : null}
             {(hovered ?? selected)?.trusted === false ? (
-              <span className="danger">UNTRUSTED</span>
+              <span className="danger">
+                <Tr text={'UNTRUSTED'} />
+              </span>
             ) : null}
           </>
         ) : (
-          <span>CLICK A NODE TO OPEN IT · DRAG TO PAN · SCROLL TO ZOOM</span>
+          <span>
+            <Tr text={'CLICK A NODE TO OPEN IT · DRAG TO PAN · SCROLL TO ZOOM'} />
+          </span>
         )}
       </footer>
     </div>

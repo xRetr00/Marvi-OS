@@ -1,3 +1,4 @@
+import { t } from '../store/locale'
 // The Voice-page orb: one coherent dotted surface. Audio pushes a travelling
 // wave through the whole sphere; there is no per-dot noise and no pointer
 // steering. Silence therefore has a stable shape and speech has readable
@@ -216,5 +217,5 @@ export function VoiceOrb({
     }
   }, [])
 
-  return <canvas aria-label="Voice activity orb" className="voice-orb-canvas" ref={ref} />
+  return <canvas aria-label={t('Voice activity orb')} className="voice-orb-canvas" ref={ref} />
 }

@@ -1,3 +1,4 @@
+import { Tr } from '../../store/locale'
 /**
  * Block-element loading indicator: the █ ▓ ▒ blocks slide over a ░ track like
  * an accordion, with staggered timing so the three densities read as one
@@ -54,7 +55,9 @@ export function AccordionLoader({
           {glyph}
         </span>
       ))}
-      <span className="sr-only">Loading</span>
+      <span className="sr-only">
+        <Tr text={'Loading'} />
+      </span>
     </span>
   )
 }

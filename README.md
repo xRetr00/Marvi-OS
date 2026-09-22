@@ -21,11 +21,12 @@
 
 ## Meet an assistant that lives with your day
 
-The desktop control center now has an English/Arabic interface preference in
-Settings → Preferences. Arabic support currently covers the navigation and
-primary Chat controls, with RTL layout and Arabic typography; other interface
-copy still falls back to English while localization is completed. This setting
-does not change speech recognition, voice synthesis, or memory storage.
+The desktop control center has an English/Arabic interface preference in
+Settings → Preferences. Arabic covers static copy across the control center,
+Chat, and Dynamic Island, with RTL layout and Arabic typography. Dynamic status
+and error text is still being localized; untranslated text falls back to
+English. This setting does not change speech recognition, voice synthesis, or
+memory storage.
 
 Most assistants wait in a tab. Marvi stays close to what you are doing on Windows. Call her by voice or shortcut, ask naturally, and keep working. A compact **Dynamic Island** shows when she is listening, speaking, acting, or waiting for your approval. Open the control center when you want the full picture.
 

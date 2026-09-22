@@ -1,3 +1,5 @@
+import { Tr } from '../store/locale'
+import { t } from '../store/locale'
 /**
  * How Marvi is, right now, in one picture.
  *
@@ -153,8 +155,8 @@ export function OverviewPage({
 
       {unwell.length > 0 && (
         <p className="ovp-trouble">
-          {unwell.map(({ label }) => label).join(', ')} {unwell.length === 1 ? 'is' : 'are'} not
-          answering.
+          {unwell.map(({ label }) => label).join(', ')} {unwell.length === 1 ? 'is' : 'are'}{' '}
+          <Tr text={'not answering.'} before after />
         </p>
       )}
 
@@ -163,13 +165,16 @@ export function OverviewPage({
       <div className="ovp-paths">
         <section className="ovp-path">
           <h3>
-            <Mic aria-hidden="true" /> When you talk to her
+            <Mic aria-hidden="true" /> <Tr text={'When you talk to her'} before after />
           </h3>
           <div className="ovp-flow">
-            <Hop label="Microphone" tone={device('microphone') === 'on' ? 'ready' : 'danger'} />
-            <Hop label="LiveKit" tone={toneOf(runtime.components.livekit?.state)} />
-            <Hop label="Gateway" tone={toneOf(runtime.components.gateway?.state)} />
-            <Hop label="Voice" tone={toneOf(runtime.components.voice?.state)} />
+            <Hop
+              label={t('Microphone')}
+              tone={device('microphone') === 'on' ? 'ready' : 'danger'}
+            />
+            <Hop label={t('LiveKit')} tone={toneOf(runtime.components.livekit?.state)} />
+            <Hop label={t('Gateway')} tone={toneOf(runtime.components.gateway?.state)} />
+            <Hop label={t('Voice')} tone={toneOf(runtime.components.voice?.state)} />
           </div>
           <p className="ovp-path-note">
             {runtime.model.llm || 'Automatic model'} ·{' '}
@@ -179,15 +184,18 @@ export function OverviewPage({
 
         <section className="ovp-path">
           <h3>
-            <Radio aria-hidden="true" /> When nobody does
+            <Radio aria-hidden="true" /> <Tr text={'When nobody does'} before after />
           </h3>
           <div className="ovp-flow">
             <Hop
               label={`${feeders.filter((one) => one.wired).length} sources`}
               tone={mute.length ? 'warning' : feeders.length ? 'ready' : 'neutral'}
             />
-            <Hop label="Mind" tone={mind?.running ? (quiet ? 'warning' : 'ready') : 'danger'} />
-            <Hop label="Announcer" tone={quiet ? 'neutral' : 'ready'} />
+            <Hop
+              label={t('Mind')}
+              tone={mind?.running ? (quiet ? 'warning' : 'ready') : 'danger'}
+            />
+            <Hop label={t('Announcer')} tone={quiet ? 'neutral' : 'ready'} />
           </div>
           <p className="ovp-path-note">
             {mute.length
@@ -202,20 +210,22 @@ export function OverviewPage({
       {waiting.length > 0 && (
         <p className="ovp-waiting">
           <Inbox aria-hidden="true" />
-          {waiting[0].summary} — held because {waiting[0].because || waiting[0].reason}
+          {waiting[0].summary} <Tr text={'— held because'} before after />
+          {waiting[0].because || waiting[0].reason}
         </p>
       )}
 
       {resources?.low_resource && (
         <p className="ovp-resources">
           <Megaphone aria-hidden="true" />
-          Standing down off the GPU while {resources.because} is running.
+          <Tr text={'Standing down off the GPU while'} after />
+          {resources.because} <Tr text={'is running.'} before after />
         </p>
       )}
 
       <section className="ovp-context">
         <h3>
-          <Ear aria-hidden="true" /> What she can see and hear
+          <Ear aria-hidden="true" /> <Tr text={'What she can see and hear'} before after />
         </h3>
         <div className="ovp-tiles">
           {[
@@ -268,9 +278,10 @@ export function OverviewPage({
           something else has already told them to. */}
       <section className="ovp-systems">
         <h3>
-          <Server aria-hidden="true" /> Systems
+          <Server aria-hidden="true" /> <Tr text={'Systems'} before after />
           <span>
-            {ready} of {services.length} ready
+            {ready} <Tr text={'of'} before after />
+            {services.length} <Tr text={'ready'} before after />
           </span>
         </h3>
         <ul>

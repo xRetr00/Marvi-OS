@@ -1,3 +1,5 @@
+import { t } from '../store/locale'
+import { Tr } from '../store/locale'
 import { useStore } from '@nanostores/react'
 import { Check, Download, GitCommit, Hash, RefreshCw, ShieldCheck, X } from 'lucide-react'
 import { Dialog } from 'radix-ui'
@@ -55,7 +57,9 @@ function CommitChanges({
         </section>
       ))}
       {check.behindBy > limit ? (
-        <p className="update-more">+{check.behindBy - limit} more changes</p>
+        <p className="update-more">
+          +{check.behindBy - limit} <Tr text={'more changes'} before />
+        </p>
       ) : null}
     </div>
   )
@@ -72,7 +76,9 @@ function UpdateActions({ compact = false }: { compact?: boolean }): React.JSX.El
   if (confirming) {
     return (
       <div className="update-confirmation" role="alert">
-        <p>Marvi will close, apply the update in the bootstrap window, then reopen.</p>
+        <p>
+          <Tr text={'Marvi will close, apply the update in the bootstrap window, then reopen.'} />
+        </p>
         <div className="update-actions">
           <button
             className="ui-button primary"
@@ -89,7 +95,7 @@ function UpdateActions({ compact = false }: { compact?: boolean }): React.JSX.El
             onClick={() => setConfirmingTarget(null)}
             type="button"
           >
-            CANCEL
+            <Tr text={'CANCEL'} />
           </button>
         </div>
       </div>
@@ -117,7 +123,7 @@ function UpdateActions({ compact = false }: { compact?: boolean }): React.JSX.El
           onClick={() => setConfirmingTarget(targetKey)}
           type="button"
         >
-          UPDATE NOW
+          <Tr text={'UPDATE NOW'} />
         </button>
       ) : null}
     </div>
@@ -164,14 +170,18 @@ function UpdateStatus({
       </div>
       {view.handoff === 'failed' ? (
         <p className="update-error">
-          The installed updater could not be started. Marvi stayed open; check again or retry.
+          <Tr
+            text={
+              'The installed updater could not be started. Marvi stayed open; check again or retry.'
+            }
+          />
         </p>
       ) : view.check?.error ? (
         <p className="update-error">{view.check.error}</p>
       ) : null}
       {view.check?.available && view.check.commits.length === 0 ? (
         <p className="update-empty-notes">
-          An update is ready, but detailed change notes are unavailable.
+          <Tr text={'An update is ready, but detailed change notes are unavailable.'} />
         </p>
       ) : null}
       {view.check ? <CommitChanges check={view.check} compact={compact} /> : null}
@@ -229,28 +239,39 @@ export function VersionPopover({
         <Dialog.Content aria-describedby="update-center-description" className="update-center">
           <header className="update-center-head">
             <div>
-              <span>MARVI DESKTOP</span>
-              <Dialog.Title>Version {version}</Dialog.Title>
+              <span>
+                <Tr text={'MARVI DESKTOP'} />
+              </span>
+              <Dialog.Title>
+                <Tr text={'Version'} after />
+                {version}
+              </Dialog.Title>
               <Dialog.Description id="update-center-description">
-                Installed build and available changes
+                <Tr text={'Installed build and available changes'} />
               </Dialog.Description>
             </div>
-            <Dialog.Close aria-label="Close update details" className="update-center-close">
+            <Dialog.Close aria-label={t('Close update details')} className="update-center-close">
               <X aria-hidden="true" />
             </Dialog.Close>
           </header>
           <UpdateStatus compact version={version} />
           <dl className="update-build-line">
             <div>
-              <dt>INSTALLED</dt>
+              <dt>
+                <Tr text={'INSTALLED'} />
+              </dt>
               <dd>{shortSha(view.check?.current)}</dd>
             </div>
             <div>
-              <dt>TARGET</dt>
+              <dt>
+                <Tr text={'TARGET'} />
+              </dt>
               <dd>{shortSha(view.check?.target)}</dd>
             </div>
             <div>
-              <dt>CHANNEL</dt>
+              <dt>
+                <Tr text={'CHANNEL'} />
+              </dt>
               <dd>{view.status?.channel?.toUpperCase() ?? 'RELEASE'}</dd>
             </div>
           </dl>
@@ -263,7 +284,7 @@ export function VersionPopover({
             }}
             type="button"
           >
-            OPEN ABOUT + UPDATE SETTINGS →
+            <Tr text={'OPEN ABOUT + UPDATE SETTINGS →'} />
           </button>
         </Dialog.Content>
       </Dialog.Portal>
@@ -282,35 +303,45 @@ export function AboutUpdates({ version }: { version: string }): React.JSX.Elemen
   }, [])
 
   return (
-    <section className="about-updates" aria-label="Updates">
+    <section className="about-updates" aria-label={t('Updates')}>
       <UpdateStatus version={version} />
       <dl className="about-update-facts">
         <div>
-          <dt>VERSION</dt>
+          <dt>
+            <Tr text={'VERSION'} />
+          </dt>
           <dd>{version}</dd>
         </div>
         <div>
-          <dt>RUNNING</dt>
+          <dt>
+            <Tr text={'RUNNING'} />
+          </dt>
           <dd>
             <code>{shortSha(view.check?.current)}</code>
           </dd>
         </div>
         <div>
-          <dt>TARGET</dt>
+          <dt>
+            <Tr text={'TARGET'} />
+          </dt>
           <dd>
             <code>{shortSha(view.check?.target)}</code>
           </dd>
         </div>
         <div>
-          <dt>CHANNEL</dt>
+          <dt>
+            <Tr text={'CHANNEL'} />
+          </dt>
           <dd>{channel.toUpperCase()}</dd>
         </div>
         <div>
-          <dt>INTEGRITY</dt>
+          <dt>
+            <Tr text={'INTEGRITY'} />
+          </dt>
           <dd>
             {view.check?.signed === true ? (
               <>
-                <ShieldCheck aria-hidden="true" /> SIGNED
+                <ShieldCheck aria-hidden="true" /> <Tr text={'SIGNED'} before after />
               </>
             ) : (
               'CHANNEL POLICY'
@@ -318,16 +349,22 @@ export function AboutUpdates({ version }: { version: string }): React.JSX.Elemen
           </dd>
         </div>
         <div>
-          <dt>UPDATER</dt>
+          <dt>
+            <Tr text={'UPDATER'} />
+          </dt>
           <dd>{view.status?.supported ? 'READY' : 'UNAVAILABLE'}</dd>
         </div>
       </dl>
       <div className="update-settings-row">
         <div>
-          <strong>Automatic checks</strong>
-          <span>At startup, every 30 minutes, and after returning to Marvi.</span>
+          <strong>
+            <Tr text={'Automatic checks'} />
+          </strong>
+          <span>
+            <Tr text={'At startup, every 30 minutes, and after returning to Marvi.'} />
+          </span>
         </div>
-        <div className="update-channel" aria-label="Update channel">
+        <div className="update-channel" aria-label={t('Update channel')}>
           {(['release', 'nightly'] as const).map((item) => (
             <button
               aria-pressed={channel === item}
@@ -344,13 +381,20 @@ export function AboutUpdates({ version }: { version: string }): React.JSX.Elemen
       <UpdateActions />
       {view.result ? (
         <div className={`update-last-run ${view.result.status}`}>
-          <span>LAST UPDATE · {view.result.status.toUpperCase()}</span>
+          <span>
+            <Tr text={'LAST UPDATE ·'} after />
+            {view.result.status.toUpperCase()}
+          </span>
           <p>{view.result.message}</p>
         </div>
       ) : null}
       <div className="update-provenance">
         <GitCommit aria-hidden="true" />
-        <span>Change details come from the commits between the running and target builds.</span>
+        <span>
+          <Tr
+            text={'Change details come from the commits between the running and target builds.'}
+          />
+        </span>
       </div>
     </section>
   )

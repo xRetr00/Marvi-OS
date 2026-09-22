@@ -1,3 +1,4 @@
+import { Tr } from '../../store/locale'
 /**
  * What a picture being drawn looks like while it is being drawn.
  *
@@ -25,7 +26,9 @@ export function ImageGeneration({
         <span className="igRes">{resolution}</span>
       </div>
       <div className="igMeta">
-        <span className="igLabel">Generating image</span>
+        <span className="igLabel">
+          <Tr text={'Generating image'} />
+        </span>
         <span className="igPrompt">“{prompt}”</span>
       </div>
     </div>

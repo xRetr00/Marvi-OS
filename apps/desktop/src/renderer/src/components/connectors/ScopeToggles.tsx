@@ -1,3 +1,4 @@
+import { t } from '../../store/locale'
 /**
  * Read/write/admin capability toggle, styled after the three-button group
  * Marvi's older Accounts settings page already used (`.account-scope`) rather
@@ -14,7 +15,7 @@ export function ScopeToggles({
   onChange: (next: 'read' | 'write' | 'admin') => void
 }): React.JSX.Element {
   return (
-    <div aria-label="Connector capability" className="connector-scope" role="group">
+    <div aria-label={t('Connector capability')} className="connector-scope" role="group">
       {(['read', 'write', 'admin'] as const).map((option) => (
         <button
           aria-pressed={scope === option}

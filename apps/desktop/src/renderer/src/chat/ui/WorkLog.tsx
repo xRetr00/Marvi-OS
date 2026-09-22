@@ -1,3 +1,4 @@
+import { Tr } from '../../store/locale'
 /**
  * "Marvi worked for 12s" -- the disclosure that holds everything she did on the
  * way to an answer: thoughts, commentary, and each tool call with what it was
@@ -153,7 +154,11 @@ export function ToolStep({
           <span aria-hidden="true" className="chat-work-tool-dot" />
         )}
         <ActivityLabel live={running} text={toolSentence(name, running)} />
-        {status === 'failed' ? <span className="chat-work-failed">failed</span> : null}
+        {status === 'failed' ? (
+          <span className="chat-work-failed">
+            <Tr text={'failed'} />
+          </span>
+        ) : null}
         {hasDetail ? (
           <ChevronDown
             aria-hidden="true"
@@ -167,13 +172,17 @@ export function ToolStep({
         <div className="chat-work-detail">
           {argText ? (
             <>
-              <span className="chat-work-detail-label">Asked</span>
+              <span className="chat-work-detail-label">
+                <Tr text={'Asked'} />
+              </span>
               <pre>{argText}</pre>
             </>
           ) : null}
           {result ? (
             <>
-              <span className="chat-work-detail-label">Returned</span>
+              <span className="chat-work-detail-label">
+                <Tr text={'Returned'} />
+              </span>
               <pre>{result}</pre>
             </>
           ) : null}

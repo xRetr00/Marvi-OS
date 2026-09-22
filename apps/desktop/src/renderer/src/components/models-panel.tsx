@@ -1,3 +1,5 @@
+import { t } from '../store/locale'
+import { Tr } from '../store/locale'
 import { useEffect, useState } from 'react'
 
 import { AuxiliarySettings } from './auxiliary-settings'
@@ -89,14 +91,14 @@ export function ModelsPanel(): React.JSX.Element {
 
   return (
     <ControlPage
-      description="Choose the provider, model, and reasoning effort used for new sessions."
-      title="Models"
+      description={t('Choose the provider, model, and reasoning effort used for new sessions.')}
+      title={t('Models')}
     >
       {!providers && !error ? (
         <ProcessingCard
           compact
           detail="Reading connected providers and the active model."
-          title="Loading models"
+          title={t('Loading models')}
         />
       ) : null}
 
@@ -104,15 +106,20 @@ export function ModelsPanel(): React.JSX.Element {
 
       {providers && connected.length === 0 ? (
         <p className="notice">
-          No provider is connected yet. Open Providers, connect one, and its models will be listed
-          here.
+          <Tr
+            text={
+              'No provider is connected yet. Open Providers, connect one, and its models will be listed here.'
+            }
+          />
         </p>
       ) : null}
 
-      <ControlSection icon={Brain} title="Default model">
+      <ControlSection icon={Brain} title={t('Default model')}>
         <div className="choice-flow">
           <div className="choice-row">
-            <span className="choice-label">Provider</span>
+            <span className="choice-label">
+              <Tr text={'Provider'} />
+            </span>
             <Picker
               options={connected.map((entry) => ({
                 value: entry.name,
@@ -129,7 +136,7 @@ export function ModelsPanel(): React.JSX.Element {
                 // whichever local endpoint sorted first.
                 void save({ MARVI_PROVIDER: next })
               }}
-              placeholder="Choose a provider"
+              placeholder={t('Choose a provider')}
               searchPlaceholder="Search providers…"
               empty="No connected providers."
             />
@@ -137,7 +144,7 @@ export function ModelsPanel(): React.JSX.Element {
 
           <div className="choice-row">
             <span className="choice-label">
-              Model
+              <Tr text={'Model'} after />
               <span className="choice-hint">
                 {!provider
                   ? 'Choose a provider first'
@@ -194,7 +201,7 @@ export function ModelsPanel(): React.JSX.Element {
       </ControlSection>
 
       {active?.routesUpstream ? (
-        <ControlSection icon={Route} title="Routing">
+        <ControlSection icon={Route} title={t('Routing')}>
           <div className="choice-flow">
             <UpstreamChoice model={model} onSave={save} />
           </div>
@@ -202,9 +209,11 @@ export function ModelsPanel(): React.JSX.Element {
       ) : null}
 
       <ControlSection
-        description="This one model answers everything, including work that needs none of its reasoning. These jobs can have their own."
+        description={t(
+          'This one model answers everything, including work that needs none of its reasoning. These jobs can have their own.'
+        )}
         icon={Brain}
-        title="Model for each job"
+        title={t('Model for each job')}
       >
         <AuxiliarySettings />
       </ControlSection>
@@ -213,14 +222,20 @@ export function ModelsPanel(): React.JSX.Element {
         <ProcessingCard
           compact
           detail={`${row?.label ?? 'Provider'} is returning its current model catalog.`}
-          title="Fetching model catalog"
+          title={t('Fetching model catalog')}
         />
       ) : null}
 
       {active && !active.reachable ? (
         <p className="notice notice-warn">
-          {active.label} is configured but returned no models. Its credential may be wrong, or its
-          API may not be reachable from this machine.
+          {active.label}{' '}
+          <Tr
+            text={
+              'is configured but returned no models. Its credential may be wrong, or its API may not be reachable from this machine.'
+            }
+            before
+            after
+          />
         </p>
       ) : null}
     </ControlPage>
@@ -264,8 +279,10 @@ function UpstreamChoice({
     <>
       <div className="choice-row">
         <span className="choice-label">
-          Routing policy
-          <span className="choice-hint">Resolved per request against live numbers</span>
+          <Tr text={'Routing policy'} after />
+          <span className="choice-hint">
+            <Tr text={'Resolved per request against live numbers'} />
+          </span>
         </span>
         <Picker
           options={(page?.policies ?? ['auto', 'cheapest', 'fastest', 'throughput']).map(
@@ -285,14 +302,14 @@ function UpstreamChoice({
             setPolicy(next)
             void onSave({ MARVI_OPENROUTER_ROUTE: next })
           }}
-          placeholder="Auto — OpenRouter decides"
+          placeholder={t('Auto — OpenRouter decides')}
           disabled={!model}
         />
       </div>
 
       <div className="choice-row">
         <span className="choice-label">
-          Preferred provider
+          <Tr text={'Preferred provider'} after />
           <span className="choice-hint">
             {upstreams.length ? `${upstreams.length} can serve this model` : 'Optional'}
           </span>
@@ -321,7 +338,7 @@ function UpstreamChoice({
             setPinned(next)
             void onSave({ MARVI_OPENROUTER_PROVIDERS: next })
           }}
-          placeholder="No preference"
+          placeholder={t('No preference')}
           searchPlaceholder="Search providers…"
           empty="OpenRouter listed no upstreams for this model."
           disabled={!model || upstreams.length === 0}

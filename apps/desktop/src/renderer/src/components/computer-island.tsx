@@ -1,3 +1,4 @@
+import { Tr } from '../store/locale'
 import { useState } from 'react'
 import type { ComputerCommand, ComputerStatus } from '../../../shared/computer'
 
@@ -49,7 +50,7 @@ export function ComputerIsland({ status }: { status: ComputerStatus }): React.JS
               void control('stop')
             }}
           >
-            STOP
+            <Tr text={'STOP'} />
           </button>
         )}
       </div>

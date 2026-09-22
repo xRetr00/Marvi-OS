@@ -1,3 +1,4 @@
+import { Tr } from '../../store/locale'
 /**
  * The indicator: Marvi is recording a meeting, and you can see that she is.
  *
@@ -54,7 +55,11 @@ export function RecordingDot({ onOpen }: { onOpen: () => void }): React.JSX.Elem
         {minutes}:{String(seconds).padStart(2, '0')}
       </span>
       {/* Said here rather than discovered in the transcript afterwards. */}
-      {deaf ? <span className="status-recording-deaf">no sound</span> : null}
+      {deaf ? (
+        <span className="status-recording-deaf">
+          <Tr text={'no sound'} />
+        </span>
+      ) : null}
     </button>
   )
 }

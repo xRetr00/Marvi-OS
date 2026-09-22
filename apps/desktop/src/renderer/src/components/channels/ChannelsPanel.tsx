@@ -1,3 +1,5 @@
+import { t } from '../../store/locale'
+import { Tr } from '../../store/locale'
 import { useCallback, useEffect, useState } from 'react'
 import { BellRing, Fingerprint, Link2, Mic, Send, Unplug, Wrench } from 'lucide-react'
 import TelegramLogo from '@thesvg/react/telegram'
@@ -86,11 +88,11 @@ export function ChannelsPanel({
 
   if (loaded && !status) {
     return (
-      <ControlPage title="Channels">
+      <ControlPage title={t('Channels')}>
         <ControlEmpty
-          description="Marvi Gateway did not answer. Channels come back when it does."
+          description={t('Marvi Gateway did not answer. Channels come back when it does.')}
           icon={Send}
-          title="Channels unavailable"
+          title={t('Channels unavailable')}
         />
       </ControlPage>
     )
@@ -103,8 +105,10 @@ export function ChannelsPanel({
   return (
     <ControlPage
       className="capabilities-page channels-page"
-      description="Talk to Marvi from your phone. She answers only you, with the same memory, tools and confirmations as here."
-      title="Channels"
+      description={t(
+        'Talk to Marvi from your phone. She answers only you, with the same memory, tools and confirmations as here.'
+      )}
+      title={t('Channels')}
     >
       <ControlSection
         action={
@@ -114,9 +118,9 @@ export function ChannelsPanel({
             </ControlPill>
           ) : undefined
         }
-        description="Long-polls Telegram from this computer. No public address, no tunnel."
+        description={t('Long-polls Telegram from this computer. No public address, no tunnel.')}
         icon={TelegramLogo}
-        title="Telegram"
+        title={t('Telegram')}
       >
         {status?.detail && status.state === 'error' ? (
           <p className="connector-setup-error">{status.detail}</p>
@@ -126,10 +130,21 @@ export function ChannelsPanel({
           <div className="connector-setup">
             <ol className="channel-steps">
               <li>
-                In Telegram, open <strong>@BotFather</strong> and send <code>/newbot</code>.
+                <Tr text={'In Telegram, open'} after />
+                <strong>
+                  <Tr text={'@BotFather'} />
+                </strong>{' '}
+                <Tr text={'and send'} before after />
+                <code>/newbot</code>.
               </li>
-              <li>Pick any name and username; BotFather replies with a token.</li>
-              <li>Paste the token here. It stays on this computer with your other keys.</li>
+              <li>
+                <Tr text={'Pick any name and username; BotFather replies with a token.'} />
+              </li>
+              <li>
+                <Tr
+                  text={'Paste the token here. It stays on this computer with your other keys.'}
+                />
+              </li>
             </ol>
             <form
               className="connector-setup-form"
@@ -139,12 +154,12 @@ export function ChannelsPanel({
               }}
             >
               <input
-                aria-label="Telegram bot token"
+                aria-label={t('Telegram bot token')}
                 autoComplete="off"
                 className="control-input"
                 disabled={busy === 'token'}
                 onChange={(event) => setToken(event.target.value)}
-                placeholder="123456789:AA…"
+                placeholder={t('123456789:AA…')}
                 spellCheck={false}
                 type="password"
                 value={token}
@@ -164,7 +179,7 @@ export function ChannelsPanel({
             action={
               pairing ? undefined : (
                 <ControlButton disabled={busy === 'pair'} onClick={() => void run('pair')}>
-                  Link my account
+                  <Tr text={'Link my account'} />
                 </ControlButton>
               )
             }
@@ -187,7 +202,9 @@ export function ChannelsPanel({
                 />
                 <div className="channel-pairing-manual">
                   <span className="channel-hint">
-                    Or open <strong>@{bot?.username}</strong> in Telegram and send:
+                    <Tr text={'Or open'} after />
+                    <strong>@{bot?.username}</strong>{' '}
+                    <Tr text={'in Telegram and send:'} before after />
                   </span>
                   <div className="channel-pairing-command">
                     <code className="channel-code">/start {pairing.code}</code>
@@ -202,14 +219,14 @@ export function ChannelsPanel({
                         })()
                       }}
                     >
-                      Copy
+                      <Tr text={'Copy'} />
                     </ControlButton>
                   </div>
                   {status?.desktop ? (
                     <ControlButton
                       onClick={() => void window.marvi?.openTelegramLink(pairing.link)}
                     >
-                      Open Telegram Desktop
+                      <Tr text={'Open Telegram Desktop'} />
                     </ControlButton>
                   ) : null}
                 </div>
@@ -226,18 +243,18 @@ export function ChannelsPanel({
                   disabled={busy === 'test' || status?.state !== 'ready'}
                   onClick={() => void run('test', undefined, 'Sent — check your phone.')}
                 >
-                  Send a test
+                  <Tr text={'Send a test'} />
                 </ControlButton>
                 <ControlButton
                   destructive
                   disabled={busy === 'unlink'}
                   onClick={() => void run('unlink')}
                 >
-                  Unlink
+                  <Tr text={'Unlink'} />
                 </ControlButton>
               </>
             }
-            description="Conversations appear in Chat as “Telegram · …” threads."
+            description={t('Conversations appear in Chat as “Telegram · …” threads.')}
             icon={Link2}
             title={`Linked to ${owner.name || 'you'}${owner.username ? ` (@${owner.username})` : ''}`}
           />
@@ -258,9 +275,11 @@ export function ChannelsPanel({
                   {status.when_away ? 'ON' : 'OFF'}
                 </button>
               }
-              description="When Marvi has something to say out loud and nobody is in the room, she texts it instead of holding it for later. Quiet hours still mean quiet."
+              description={t(
+                'When Marvi has something to say out loud and nobody is in the room, she texts it instead of holding it for later. Quiet hours still mean quiet.'
+              )}
               icon={BellRing}
-              title="Text me when I'm away"
+              title={t("Text me when I'm away")}
             />
             <ControlRow
               action={
@@ -275,9 +294,11 @@ export function ChannelsPanel({
                   {status.voice_replies !== false ? 'ON' : 'OFF'}
                 </button>
               }
-              description="Send a voice note and she answers with one too, in her own voice made on this computer — after the text, so the words never wait."
+              description={t(
+                'Send a voice note and she answers with one too, in her own voice made on this computer — after the text, so the words never wait.'
+              )}
               icon={Mic}
-              title="Answer voice with voice"
+              title={t('Answer voice with voice')}
             />
             <ControlRow
               action={
@@ -285,24 +306,31 @@ export function ChannelsPanel({
                   disabled={busy === 'identity' || status.state !== 'ready'}
                   onClick={() => void run('identity', undefined, 'Profile updated.')}
                 >
-                  Sync profile
+                  <Tr text={'Sync profile'} />
                 </ControlButton>
               }
-              description="The bot's name, avatar, description and command menu come from Marvi. Your SOUL.md and USER.md stay private."
+              description={t(
+                "The bot's name, avatar, description and command menu come from Marvi. Your SOUL.md and USER.md stay private."
+              )}
               icon={Fingerprint}
-              title="Bot profile"
+              title={t('Bot profile')}
             />
             <ControlRow
               description={
                 <>
-                  <code>telegram_send</code> texts you (with a workspace file if asked),{' '}
-                  <code>telegram_status</code> checks the link, <code>telegram_recent</code> reads
-                  your recent messages. Cron jobs can deliver to <em>Telegram (your phone)</em>.
-                  Voice notes are transcribed on this computer.
+                  <code>telegram_send</code>{' '}
+                  <Tr text={'texts you (with a workspace file if asked),'} before />{' '}
+                  <code>telegram_status</code> <Tr text={'checks the link,'} before after />
+                  <code>telegram_recent</code>{' '}
+                  <Tr text={'reads your recent messages. Cron jobs can deliver to'} before after />
+                  <em>
+                    <Tr text={'Telegram (your phone)'} />
+                  </em>
+                  <Tr text={'. Voice notes are transcribed on this computer.'} after />
                 </>
               }
               icon={Wrench}
-              title="What Marvi can do here"
+              title={t('What Marvi can do here')}
             />
             <ControlRow
               action={
@@ -311,12 +339,14 @@ export function ChannelsPanel({
                   disabled={busy === 'disconnect'}
                   onClick={() => void run('disconnect')}
                 >
-                  Disconnect bot
+                  <Tr text={'Disconnect bot'} />
                 </ControlButton>
               }
-              description="Stops the bot and forgets its token. Your linked account is kept for when you reconnect."
+              description={t(
+                'Stops the bot and forgets its token. Your linked account is kept for when you reconnect.'
+              )}
               icon={Unplug}
-              title="Disconnect"
+              title={t('Disconnect')}
             />
           </>
         ) : null}

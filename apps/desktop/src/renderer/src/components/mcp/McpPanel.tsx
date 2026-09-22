@@ -1,3 +1,5 @@
+import { t } from '../../store/locale'
+import { Tr } from '../../store/locale'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Boxes, PackagePlus, Server, Trash2 } from 'lucide-react'
 
@@ -102,28 +104,36 @@ export function McpPanel(): React.JSX.Element {
   return (
     <ControlPage
       className="capabilities-page"
-      description="Local MCP servers Marvi can call as tools, installed or from the registry."
-      title="MCP"
+      description={t('Local MCP servers Marvi can call as tools, installed or from the registry.')}
+      title={t('MCP')}
     >
-      <div className="capability-overview" aria-label="MCP summary">
+      <div className="capability-overview" aria-label={t('MCP summary')}>
         <div>
-          <span>Installed</span>
+          <span>
+            <Tr text={'Installed'} />
+          </span>
           <strong>{installed.length}</strong>
         </div>
         <div>
-          <span>Connected</span>
+          <span>
+            <Tr text={'Connected'} />
+          </span>
           <strong>{connected}</strong>
         </div>
         <div>
-          <span>Available tools</span>
+          <span>
+            <Tr text={'Available tools'} />
+          </span>
           <strong>{tools}</strong>
         </div>
         <div>
-          <span>Registry results</span>
+          <span>
+            <Tr text={'Registry results'} />
+          </span>
           <strong>{registry.length}</strong>
         </div>
       </div>
-      <div className="capability-store-tabs" role="tablist" aria-label="MCP stores">
+      <div className="capability-store-tabs" role="tablist" aria-label={t('MCP stores')}>
         {STORE_TABS.map((tab) => (
           <button
             aria-selected={storeTab === tab.key}
@@ -192,7 +202,7 @@ export function McpPanel(): React.JSX.Element {
         </div>
         <div className="capability-toolbar">
           <input
-            aria-label="Search MCP servers"
+            aria-label={t('Search MCP servers')}
             className="capability-search"
             onChange={(event) => {
               setQuery(event.target.value)
@@ -230,7 +240,9 @@ export function McpPanel(): React.JSX.Element {
                 <header>
                   <div>
                     <Server aria-hidden="true" size={15} />
-                    <strong>Installed servers</strong>
+                    <strong>
+                      <Tr text={'Installed servers'} />
+                    </strong>
                   </div>
                   <span>{installedFiltered.length}</span>
                 </header>
@@ -252,12 +264,17 @@ export function McpPanel(): React.JSX.Element {
                           {row.status}
                         </ControlPill>
                       </header>
-                      <p>Tools exposed to Marvi through this local server.</p>
+                      <p>
+                        <Tr text={'Tools exposed to Marvi through this local server.'} />
+                      </p>
                       <div className="capability-card-meta">
                         <span>
-                          {row.tools} tool{row.tools === 1 ? '' : 's'}
+                          {row.tools} <Tr text={'tool'} before />
+                          {row.tools === 1 ? '' : 's'}
                         </span>
-                        <span>Installed</span>
+                        <span>
+                          <Tr text={'Installed'} />
+                        </span>
                       </div>
                       <footer className="capability-card-actions">
                         <button
@@ -266,7 +283,8 @@ export function McpPanel(): React.JSX.Element {
                           onClick={() => void remove(row.id)}
                           type="button"
                         >
-                          <Trash2 aria-hidden="true" size={13} /> Remove
+                          <Trash2 aria-hidden="true" size={13} />{' '}
+                          <Tr text={'Remove'} before after />
                         </button>
                       </footer>
                     </article>
@@ -279,7 +297,9 @@ export function McpPanel(): React.JSX.Element {
                 <header>
                   <div>
                     <PackagePlus aria-hidden="true" size={15} />
-                    <strong>Registry catalog</strong>
+                    <strong>
+                      <Tr text={'Registry catalog'} />
+                    </strong>
                   </div>
                   <span>{registryFiltered.length}</span>
                 </header>
@@ -297,7 +317,9 @@ export function McpPanel(): React.JSX.Element {
                           <strong>{row.name}</strong>
                           <span>{row.author || 'Registry publisher'}</span>
                         </div>
-                        <ControlPill>Registry</ControlPill>
+                        <ControlPill>
+                          <Tr text={'Registry'} />
+                        </ControlPill>
                       </header>
                       <p>{row.description || 'No description supplied by the publisher.'}</p>
                       <div className="capability-card-meta">
@@ -309,7 +331,7 @@ export function McpPanel(): React.JSX.Element {
                           onClick={() => setInstallTarget(row)}
                           type="button"
                         >
-                          Review and install
+                          <Tr text={'Review and install'} />
                         </button>
                       </footer>
                     </article>
@@ -317,7 +339,8 @@ export function McpPanel(): React.JSX.Element {
                 </div>
                 <div className="capability-load-row">
                   <span>
-                    {registryFiltered.length} available from {registry.length} loaded entries
+                    {registryFiltered.length} <Tr text={'available from'} before after />
+                    {registry.length} <Tr text={'loaded entries'} before after />
                   </span>
                   {registryPage < registryTotalPages ? (
                     <button
@@ -329,7 +352,9 @@ export function McpPanel(): React.JSX.Element {
                       {loadingRegistry ? 'Loading…' : 'Load more servers'}
                     </button>
                   ) : (
-                    <span>End of registry</span>
+                    <span>
+                      <Tr text={'End of registry'} />
+                    </span>
                   )}
                 </div>
               </section>

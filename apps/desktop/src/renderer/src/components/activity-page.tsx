@@ -1,3 +1,5 @@
+import { t } from '../store/locale'
+import { Tr } from '../store/locale'
 /**
  * Every tool Marvi has reached for, and how it went.
  *
@@ -139,9 +141,15 @@ export function ActivityPage(): React.JSX.Element {
     <div className="act-page">
       <header className="act-head">
         <div>
-          <h2>Activity</h2>
+          <h2>
+            <Tr text={'Activity'} />
+          </h2>
           <p>
-            Every tool Marvi reached for, and how it went. Local only — none of this is uploaded.
+            <Tr
+              text={
+                'Every tool Marvi reached for, and how it went. Local only — none of this is uploaded.'
+              }
+            />
           </p>
         </div>
       </header>
@@ -149,19 +157,27 @@ export function ActivityPage(): React.JSX.Element {
       <div className="act-figures">
         <div className="act-figure">
           <strong>{events.length}</strong>
-          <span>calls</span>
+          <span>
+            <Tr text={'calls'} />
+          </span>
         </div>
         <div className={failed ? 'act-figure is-bad' : 'act-figure'}>
           <strong>{failed}</strong>
-          <span>failed</span>
+          <span>
+            <Tr text={'failed'} />
+          </span>
         </div>
         <div className={unasked ? 'act-figure is-warn' : 'act-figure'}>
           <strong>{unasked}</strong>
-          <span>without asking</span>
+          <span>
+            <Tr text={'without asking'} />
+          </span>
         </div>
         <div className="act-figure">
           <strong>{tools}</strong>
-          <span>different tools</span>
+          <span>
+            <Tr text={'different tools'} />
+          </span>
         </div>
       </div>
 
@@ -169,7 +185,7 @@ export function ActivityPage(): React.JSX.Element {
           hour; the red portion is the failures inside that hour, so a bad
           patch is visible without reading a single row. */}
       {hours.length > 1 && (
-        <div className="act-strip" role="img" aria-label="Tool calls per hour">
+        <div className="act-strip" role="img" aria-label={t('Tool calls per hour')}>
           {hours.map((hour) => (
             <div
               className="act-strip-bar"
@@ -229,8 +245,8 @@ export function ActivityPage(): React.JSX.Element {
                     <span className="act-run-times">×{run.events.length}</span>
                   )}
                   {run.yolo > 0 && (
-                    <span className="act-run-yolo" title="Ran without a confirmation">
-                      <Zap aria-hidden="true" /> unasked
+                    <span className="act-run-yolo" title={t('Ran without a confirmation')}>
+                      <Zap aria-hidden="true" /> <Tr text={'unasked'} before after />
                     </span>
                   )}
                   <span className="act-run-detail">{first.detail ?? first.event}</span>
@@ -265,7 +281,8 @@ export function ActivityPage(): React.JSX.Element {
       )}
 
       <p className="act-foot">
-        <History aria-hidden="true" /> Showing the last {events.length} recorded calls.
+        <History aria-hidden="true" /> <Tr text={'Showing the last'} before after />
+        {events.length} <Tr text={'recorded calls.'} before after />
       </p>
     </div>
   )
@@ -313,8 +330,12 @@ function FileChanges(): React.JSX.Element | null {
   return (
     <section className="act-files">
       <header>
-        <h3>Files Marvi changed</h3>
-        <p>A copy was kept just before each change. Restoring keeps a copy too.</p>
+        <h3>
+          <Tr text={'Files Marvi changed'} />
+        </h3>
+        <p>
+          <Tr text={'A copy was kept just before each change. Restoring keeps a copy too.'} />
+        </p>
       </header>
       {said ? <p className="act-files-said">{said}</p> : null}
       <ul>
@@ -331,7 +352,7 @@ function FileChanges(): React.JSX.Element | null {
               onClick={() => void restore(row)}
               type="button"
             >
-              <RotateCcw aria-hidden="true" size={12} /> Restore
+              <RotateCcw aria-hidden="true" size={12} /> <Tr text={'Restore'} before after />
             </button>
           </li>
         ))}

@@ -1,3 +1,5 @@
+import { t } from '../../store/locale'
+import { Tr } from '../../store/locale'
 /**
  * The board: every job Marvi is doing, has done, or is stuck on.
  *
@@ -75,13 +77,22 @@ export function JobsBoard(): React.JSX.Element {
     <div className="wf-board">
       <header className="wf-head">
         <div>
-          <h3>Jobs</h3>
+          <h3>
+            <Tr text={'Jobs'} />
+          </h3>
           <p>
-            Everything handed to a sub-agent or written down for later. Cards survive a restart; one
-            interrupted by a restart says so.
+            <Tr
+              text={
+                'Everything handed to a sub-agent or written down for later. Cards survive a restart; one interrupted by a restart says so.'
+              }
+            />
           </p>
         </div>
-        {waiting > 0 ? <span className="wf-waiting">{waiting} waiting on you</span> : null}
+        {waiting > 0 ? (
+          <span className="wf-waiting">
+            {waiting} <Tr text={'waiting on you'} before />
+          </span>
+        ) : null}
       </header>
 
       <div className="wf-columns">
@@ -162,7 +173,7 @@ function JobDrawer({
         role="dialog"
       >
         <button
-          aria-label="Close"
+          aria-label={t('Close')}
           className="connector-modal-close"
           onClick={onClose}
           type="button"
@@ -184,7 +195,9 @@ function JobDrawer({
 
         {card.runs?.length ? (
           <section className="wf-section">
-            <h4>Attempts</h4>
+            <h4>
+              <Tr text={'Attempts'} />
+            </h4>
             <ul className="wf-runs">
               {card.runs.map((run) => (
                 <li key={run.id}>
@@ -201,7 +214,9 @@ function JobDrawer({
         ) : null}
 
         <section className="wf-section">
-          <h4>Comments</h4>
+          <h4>
+            <Tr text={'Comments'} />
+          </h4>
           <ul className="wf-comments">
             {(card.comments ?? []).map((one) => (
               <li key={one.id}>
@@ -209,11 +224,15 @@ function JobDrawer({
                 <span>{one.body}</span>
               </li>
             ))}
-            {card.comments?.length === 0 ? <li className="wf-empty">Nothing said yet.</li> : null}
+            {card.comments?.length === 0 ? (
+              <li className="wf-empty">
+                <Tr text={'Nothing said yet.'} />
+              </li>
+            ) : null}
           </ul>
           <div className="wf-say">
             <input
-              aria-label="Add a comment"
+              aria-label={t('Add a comment')}
               onChange={(event) => setComment(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter') void say()
@@ -227,7 +246,9 @@ function JobDrawer({
           </div>
           {live ? (
             <p className="wf-note">
-              A comment on a running job reaches it: the sub-agent is told, mid-work.
+              <Tr
+                text={'A comment on a running job reaches it: the sub-agent is told, mid-work.'}
+              />
             </p>
           ) : null}
         </section>
@@ -242,7 +263,7 @@ function JobDrawer({
               }
               type="button"
             >
-              Cancel job
+              <Tr text={'Cancel job'} />
             </button>
           ) : null}
           {card.status !== 'done' ? (
@@ -254,7 +275,7 @@ function JobDrawer({
               }
               type="button"
             >
-              Mark done
+              <Tr text={'Mark done'} />
             </button>
           ) : null}
         </footer>

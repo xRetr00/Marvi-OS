@@ -1,3 +1,5 @@
+import { t } from '../../store/locale'
+import { Tr } from '../../store/locale'
 /**
  * Generative UI: the components assistant-ui draws for a tool call.
  *
@@ -127,7 +129,9 @@ function ClarifyCard({
     return (
       <div className="chat-ask chat-ask-settled" data-conversation-scaffold="">
         <AbstractIcon name="check" size={13} />
-        <span className="chat-scaffold-label">Answered</span>
+        <span className="chat-scaffold-label">
+          <Tr text={'Answered'} />
+        </span>
       </div>
     )
   }
@@ -139,7 +143,7 @@ function ClarifyCard({
 
   return (
     <form
-      aria-label="A question from Marvi"
+      aria-label={t('A question from Marvi')}
       className="chat-ask"
       data-conversation-scaffold=""
       onSubmit={(event) => {
@@ -193,7 +197,7 @@ function ClarifyCard({
           value={typed}
         />
         <button className="chat-ask-send" disabled={!typed.trim() && !picked.length} type="submit">
-          SEND
+          <Tr text={'SEND'} />
         </button>
       </div>
     </form>
@@ -223,7 +227,9 @@ function SecretCard({
     return (
       <div className="chat-ask chat-ask-settled" data-conversation-scaffold="">
         <AbstractIcon name="check" size={13} />
-        <span className="chat-scaffold-label">{setting} saved</span>
+        <span className="chat-scaffold-label">
+          {setting} <Tr text={'saved'} before />
+        </span>
       </div>
     )
   }
@@ -266,13 +272,13 @@ function SecretCard({
           className="chat-ask-input"
           disabled={busy}
           onChange={(event) => setValue(event.target.value)}
-          placeholder="Paste it here"
+          placeholder={t('Paste it here')}
           // Masked, never logged, never echoed. The one field in Chat that is.
           type="password"
           value={value}
         />
         <button className="chat-ask-send" disabled={busy || !value} type="submit">
-          SAVE
+          <Tr text={'SAVE'} />
         </button>
         <button
           className="chat-ask-skip"
@@ -280,7 +286,7 @@ function SecretCard({
           onClick={() => onSettled('skipped')}
           type="button"
         >
-          NOT NOW
+          <Tr text={'NOT NOW'} />
         </button>
       </div>
       {failed ? (

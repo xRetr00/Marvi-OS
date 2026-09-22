@@ -1,3 +1,4 @@
+import { t } from '../store/locale'
 import type { ComponentPropsWithoutRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import rehypeKatex from 'rehype-katex'
@@ -76,7 +77,7 @@ function Code({
     <span className="chat-code-shell">
       <span className="chat-code-head">
         <span>{language || 'plain text'}</span>
-        <CopyMessageAction content={text} label="Copy code" />
+        <CopyMessageAction content={text} label={t('Copy code')} />
       </span>
       <code className={className} {...props}>
         {text}

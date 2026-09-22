@@ -1,3 +1,4 @@
+import { t } from '../../store/locale'
 import { useEffect, useState } from 'react'
 
 import type { ChatAttachment } from '../../../../shared/runtime'
@@ -68,7 +69,7 @@ export function AttachmentPreview({
             role="dialog"
           >
             <button
-              aria-label="Close image preview"
+              aria-label={t('Close image preview')}
               onClick={() => setExpanded(false)}
               type="button"
             >

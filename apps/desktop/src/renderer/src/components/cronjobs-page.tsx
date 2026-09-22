@@ -1,3 +1,5 @@
+import { t } from '../store/locale'
+import { Tr } from '../store/locale'
 /**
  * Cronjobs: the things Marvi does on a timer without being asked.
  *
@@ -58,7 +60,9 @@ function DeliveryField({
 }): React.JSX.Element {
   return (
     <label className="cron-field">
-      <span>Delivery</span>
+      <span>
+        <Tr text={'Delivery'} />
+      </span>
       <select onChange={(event) => onChange(event.target.value)} value={value}>
         {(page?.delivery_targets ?? [{ id: 'local', name: 'Keep it local', available: true }]).map(
           (target) => (
@@ -256,10 +260,15 @@ export function CronjobsPage(): React.JSX.Element {
     <div className="cron-page">
       <header className="cron-head">
         <div>
-          <h2>Cronjobs</h2>
+          <h2>
+            <Tr text={'Cronjobs'} />
+          </h2>
           <p>
-            Things Marvi does on a timer without being asked — a reminder at a fixed time, or a
-            whole task she reads and works through on her own.
+            <Tr
+              text={
+                'Things Marvi does on a timer without being asked — a reminder at a fixed time, or a whole task she reads and works through on her own.'
+              }
+            />
           </p>
         </div>
         <button className="cron-new" onClick={open ? closeForm : openNew} type="button">
@@ -269,16 +278,22 @@ export function CronjobsPage(): React.JSX.Element {
       </header>
 
       {!page?.running && page && (
-        <p className="cron-warn">The scheduler is not running, so nothing here will fire.</p>
+        <p className="cron-warn">
+          <Tr text={'The scheduler is not running, so nothing here will fire.'} />
+        </p>
       )}
       {error && !open && <p className="cron-error cron-action-error">{error}</p>}
 
-      <section aria-label="Cron job templates" className="cron-templates">
+      <section aria-label={t('Cron job templates')} className="cron-templates">
         <div className="cron-templates-head">
           <LayoutTemplate aria-hidden="true" />
           <div>
-            <h3>Start from a template</h3>
-            <p>Pick one, adjust the details, then save it as your own job.</p>
+            <h3>
+              <Tr text={'Start from a template'} />
+            </h3>
+            <p>
+              <Tr text={'Pick one, adjust the details, then save it as your own job.'} />
+            </p>
           </div>
         </div>
         <div className="cron-template-list">
@@ -319,24 +334,31 @@ export function CronjobsPage(): React.JSX.Element {
                   </span>
                   <span className="cron-kind-what">{kind.what}</span>
                   <span className="cron-kind-costs">{kind.costs}</span>
-                  <span className="cron-kind-eg">e.g. {kind.example}</span>
+                  <span className="cron-kind-eg">
+                    <Tr text={'e.g.'} after />
+                    {kind.example}
+                  </span>
                 </button>
               )
             })}
           </div>
 
           <label className="cron-field">
-            <span>Name</span>
+            <span>
+              <Tr text={'Name'} />
+            </span>
             <input
               onChange={(event) => setName(event.target.value)}
-              placeholder="Morning briefing"
+              placeholder={t('Morning briefing')}
               type="text"
               value={name}
             />
           </label>
 
           <div className="cron-field">
-            <span>When</span>
+            <span>
+              <Tr text={'When'} />
+            </span>
             {/* A picker rather than a text box with a grammar behind it. See
                 `when-picker`: the obvious thing to type was rejected, and so
                 was every example this form used to offer. */}
@@ -347,9 +369,13 @@ export function CronjobsPage(): React.JSX.Element {
             <>
               {page && Object.keys(page.actions).length > 0 && (
                 <label className="cron-field">
-                  <span>Does</span>
+                  <span>
+                    <Tr text={'Does'} />
+                  </span>
                   <select onChange={(event) => setAction(event.target.value)} value={action}>
-                    <option value="">Say something out loud</option>
+                    <option value="">
+                      <Tr text={'Say something out loud'} />
+                    </option>
                     {Object.entries(page.actions).map(([id, describes]) => (
                       <option key={id} value={id}>
                         {describes}
@@ -359,10 +385,12 @@ export function CronjobsPage(): React.JSX.Element {
                 </label>
               )}
               <label className="cron-field">
-                <span>Says</span>
+                <span>
+                  <Tr text={'Says'} />
+                </span>
                 <input
                   onChange={(event) => setMessage(event.target.value)}
-                  placeholder="Stand-up in ten minutes"
+                  placeholder={t('Stand-up in ten minutes')}
                   type="text"
                   value={message}
                 />
@@ -372,10 +400,14 @@ export function CronjobsPage(): React.JSX.Element {
           ) : (
             <>
               <label className="cron-field is-tall">
-                <span>The brief</span>
+                <span>
+                  <Tr text={'The brief'} />
+                </span>
                 <textarea
                   onChange={(event) => setPrompt(event.target.value)}
-                  placeholder="Check my inbox and calendar and tell me what actually needs me today. Keep it under thirty seconds."
+                  placeholder={t(
+                    'Check my inbox and calendar and tell me what actually needs me today. Keep it under thirty seconds.'
+                  )}
                   rows={4}
                   value={prompt}
                 />
@@ -386,12 +418,18 @@ export function CronjobsPage(): React.JSX.Element {
                   a day, the other a cheap one three hundred times. */}
               <fieldset className="cron-model">
                 <legend>
-                  <Cpu aria-hidden="true" /> Which model runs it
+                  <Cpu aria-hidden="true" /> <Tr text={'Which model runs it'} before after />
                 </legend>
-                <p>Leave these on Automatic and Marvi picks, the same as everything else.</p>
+                <p>
+                  <Tr
+                    text={'Leave these on Automatic and Marvi picks, the same as everything else.'}
+                  />
+                </p>
                 <div className="cron-model-row">
                   <label>
-                    <span>Provider</span>
+                    <span>
+                      <Tr text={'Provider'} />
+                    </span>
                     <select
                       onChange={(event) => {
                         setProvider(event.target.value)
@@ -400,7 +438,9 @@ export function CronjobsPage(): React.JSX.Element {
                       }}
                       value={provider}
                     >
-                      <option value="">Automatic</option>
+                      <option value="">
+                        <Tr text={'Automatic'} />
+                      </option>
                       {providers.map((one) => (
                         <option key={one.name} value={one.name}>
                           {one.label}
@@ -409,7 +449,9 @@ export function CronjobsPage(): React.JSX.Element {
                     </select>
                   </label>
                   <label>
-                    <span>Model</span>
+                    <span>
+                      <Tr text={'Model'} />
+                    </span>
                     <select
                       disabled={!provider || fetching === provider}
                       onChange={(event) => setModel(event.target.value)}
@@ -426,9 +468,13 @@ export function CronjobsPage(): React.JSX.Element {
                     </select>
                   </label>
                   <label>
-                    <span>Effort</span>
+                    <span>
+                      <Tr text={'Effort'} />
+                    </span>
                     <select onChange={(event) => setEffort(event.target.value)} value={effort}>
-                      <option value="">Automatic</option>
+                      <option value="">
+                        <Tr text={'Automatic'} />
+                      </option>
                       {(page?.efforts ?? []).map((one) => (
                         <option key={one} value={one}>
                           {one}
@@ -441,7 +487,8 @@ export function CronjobsPage(): React.JSX.Element {
 
               <details className="cron-more">
                 <summary>
-                  <ChevronDown aria-hidden="true" /> Tools and where the answer goes
+                  <ChevronDown aria-hidden="true" />{' '}
+                  <Tr text={'Tools and where the answer goes'} before after />
                 </summary>
                 <DeliveryField onChange={setDelivery} page={page} value={delivery} />
                 <p className="cron-tools-note">
@@ -478,10 +525,13 @@ export function CronjobsPage(): React.JSX.Element {
               type="checkbox"
             />
             <span>
-              Speak anyway
+              <Tr text={'Speak anyway'} after />
               <small>
-                Ignores quiet hours and sleep mode. For an alarm you mean — an hourly check firing
-                out loud at 3am is what quiet hours exists to prevent.
+                <Tr
+                  text={
+                    'Ignores quiet hours and sleep mode. For an alarm you mean — an hourly check firing out loud at 3am is what quiet hours exists to prevent.'
+                  }
+                />
               </small>
             </span>
           </label>
@@ -507,8 +557,11 @@ export function CronjobsPage(): React.JSX.Element {
 
       {jobs.length === 0 && page ? (
         <p className="cron-empty">
-          Nothing scheduled. A job can be a reminder at a fixed time, or a task Marvi works through
-          on her own.
+          <Tr
+            text={
+              'Nothing scheduled. A job can be a reminder at a fixed time, or a task Marvi works through on her own.'
+            }
+          />
         </p>
       ) : (
         <ScheduleCards

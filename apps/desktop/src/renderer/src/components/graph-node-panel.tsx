@@ -1,3 +1,5 @@
+import { t } from '../store/locale'
+import { Tr } from '../store/locale'
 import React, { useState } from 'react'
 import { Trash2, X } from 'lucide-react'
 
@@ -62,35 +64,45 @@ export function GraphNodePanel({
     <aside className="graph-node-panel">
       <header>
         <strong>{node.label}</strong>
-        <button aria-label="Close" onClick={onClose} type="button">
+        <button aria-label={t('Close')} onClick={onClose} type="button">
           <X aria-hidden="true" />
         </button>
       </header>
 
       <dl>
         <div>
-          <dt>Kind</dt>
+          <dt>
+            <Tr text={'Kind'} />
+          </dt>
           <dd>{node.kind}</dd>
         </div>
         {entry ? (
           <>
             <div>
-              <dt>Source</dt>
+              <dt>
+                <Tr text={'Source'} />
+              </dt>
               <dd>{entry.source.replace('import:', '') || 'marvi'}</dd>
             </div>
             <div>
-              <dt>Stored</dt>
+              <dt>
+                <Tr text={'Stored'} />
+              </dt>
               <dd>{entry.at.slice(0, 10)}</dd>
             </div>
             <div>
-              <dt>Trusted</dt>
+              <dt>
+                <Tr text={'Trusted'} />
+              </dt>
               <dd>{entry.trusted ? 'yes' : 'came from outside'}</dd>
             </div>
           </>
         ) : null}
         {node.provenance && !entry ? (
           <div>
-            <dt>Source</dt>
+            <dt>
+              <Tr text={'Source'} />
+            </dt>
             <dd>{node.provenance}</dd>
           </div>
         ) : null}
@@ -99,11 +111,15 @@ export function GraphNodePanel({
       {entry ? (
         <>
           <label className="graph-node-field">
-            <span>Subject</span>
+            <span>
+              <Tr text={'Subject'} />
+            </span>
             <input value={subject} onChange={(event) => setSubject(event.target.value)} />
           </label>
           <label className="graph-node-field">
-            <span>What it says</span>
+            <span>
+              <Tr text={'What it says'} />
+            </span>
             <textarea rows={5} value={body} onChange={(event) => setBody(event.target.value)} />
           </label>
           <div className="provider-actions">
@@ -127,15 +143,15 @@ export function GraphNodePanel({
                   }
                   type="button"
                 >
-                  <Trash2 aria-hidden="true" /> Delete it
+                  <Trash2 aria-hidden="true" /> <Tr text={'Delete it'} before after />
                 </button>
                 <button className="phase" onClick={() => setArmed(false)} type="button">
-                  Cancel
+                  <Tr text={'Cancel'} />
                 </button>
               </>
             ) : (
               <button className="phase" onClick={() => setArmed(true)} type="button">
-                Forget this
+                <Tr text={'Forget this'} />
               </button>
             )}
           </div>
@@ -143,13 +159,17 @@ export function GraphNodePanel({
       ) : isEntity ? (
         <>
           <label className="graph-node-field">
-            <span>Name</span>
+            <span>
+              <Tr text={'Name'} />
+            </span>
             <input value={name} onChange={(event) => setName(event.target.value)} />
           </label>
           <p className="notice">
-            Renaming to a name that already exists merges the two, keeping every relationship both
-            had. That is usually what you want: the same person arriving twice under two spellings
-            is the common way this graph goes wrong.
+            <Tr
+              text={
+                'Renaming to a name that already exists merges the two, keeping every relationship both had. That is usually what you want: the same person arriving twice under two spellings is the common way this graph goes wrong.'
+              }
+            />
           </p>
           <div className="provider-actions">
             <button
@@ -174,23 +194,26 @@ export function GraphNodePanel({
                   }
                   type="button"
                 >
-                  <Trash2 aria-hidden="true" /> Remove it
+                  <Trash2 aria-hidden="true" /> <Tr text={'Remove it'} before after />
                 </button>
                 <button className="phase" onClick={() => setArmed(false)} type="button">
-                  Cancel
+                  <Tr text={'Cancel'} />
                 </button>
               </>
             ) : (
               <button className="phase" onClick={() => setArmed(true)} type="button">
-                Remove from the graph
+                <Tr text={'Remove from the graph'} />
               </button>
             )}
           </div>
         </>
       ) : (
         <p className="notice">
-          This is a grouping rather than something Marvi remembers, so there is nothing here to
-          edit. Open one of the nodes under it.
+          <Tr
+            text={
+              'This is a grouping rather than something Marvi remembers, so there is nothing here to edit. Open one of the nodes under it.'
+            }
+          />
         </p>
       )}
 

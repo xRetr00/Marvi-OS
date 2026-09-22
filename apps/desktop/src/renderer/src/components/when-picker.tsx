@@ -1,3 +1,4 @@
+import { Tr } from '../store/locale'
 /**
  * Choosing when a job runs, without knowing any syntax.
  *
@@ -92,7 +93,9 @@ export function WhenPicker({
       <div className="when-detail">
         {rhythm === 'interval' ? (
           <label>
-            <span>Every</span>
+            <span>
+              <Tr text={'Every'} />
+            </span>
             <select
               onChange={(event) => {
                 setTyping(false)
@@ -111,7 +114,9 @@ export function WhenPicker({
           <>
             {rhythm === 'weekly' && (
               <label>
-                <span>On</span>
+                <span>
+                  <Tr text={'On'} />
+                </span>
                 <select
                   onChange={(event) => {
                     setTyping(false)
@@ -128,7 +133,9 @@ export function WhenPicker({
               </label>
             )}
             <label>
-              <span>At</span>
+              <span>
+                <Tr text={'At'} />
+              </span>
               {/* A real time input: it respects the machine's 12/24-hour
                   setting and cannot produce 25:00, which the text box could. */}
               <input
@@ -145,7 +152,9 @@ export function WhenPicker({
       </div>
 
       <label className="when-exact">
-        <span>Or write it yourself</span>
+        <span>
+          <Tr text={'Or write it yourself'} />
+        </span>
         <input
           onChange={(event) => {
             setTyping(true)

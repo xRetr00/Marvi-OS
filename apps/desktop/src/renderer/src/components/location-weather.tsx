@@ -1,3 +1,5 @@
+import { t } from '../store/locale'
+import { Tr } from '../store/locale'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ArrowDown,
@@ -281,10 +283,14 @@ function LocationMap({
             : 'Map. Click to drop a pin.'
         }
       />
-      {expanded && !draft && <span className="map-hint">Click the map to drop a pin</span>}
+      {expanded && !draft && (
+        <span className="map-hint">
+          <Tr text={'Click the map to drop a pin'} />
+        </span>
+      )}
       {failed && (
         <span className="map-unavailable">
-          Some map tiles are unavailable · position remains marked
+          <Tr text={'Some map tiles are unavailable · position remains marked'} />
         </span>
       )}
     </div>
@@ -431,10 +437,12 @@ export function LocationWeather(): React.JSX.Element {
                   ? 'Location off'
                   : 'Unavailable'
   return (
-    <section className="location-weather" aria-label="Local weather and location">
+    <section className="location-weather" aria-label={t('Local weather and location')}>
       <article className="local-weather-card">
         <header>
-          <span>OUTSIDE</span>
+          <span>
+            <Tr text={'OUTSIDE'} />
+          </span>
           <span>{weather?.status === 'stale' ? 'CACHED · OUT OF DATE' : 'WEATHER'}</span>
         </header>
         {data ? (
@@ -444,20 +452,28 @@ export function LocationWeather(): React.JSX.Element {
               <div>
                 <strong>
                   {Math.round(data.current.temperature_2m)}
-                  <small>°C</small>
+                  <small>
+                    <Tr text={'°C'} />
+                  </small>
                 </strong>
                 <p>{weatherLabel(data.current.weather_code)}</p>
               </div>
               <div className="weather-context">
                 <span>{place?.label}</span>
-                <span>Feels like {Math.round(data.current.apparent_temperature)}°</span>
+                <span>
+                  <Tr text={'Feels like'} after />
+                  {Math.round(data.current.apparent_temperature)}°
+                </span>
               </div>
             </div>
             <div className="weather-details">
               <span>
-                <Wind /> {data.current.wind_speed_10m} km/h
+                <Wind /> {data.current.wind_speed_10m} <Tr text={'km/h'} before after />
               </span>
-              <span>Humidity {data.current.relative_humidity_2m}%</span>
+              <span>
+                <Tr text={'Humidity'} after />
+                {data.current.relative_humidity_2m}%
+              </span>
             </div>
             <div className="weather-days">
               {data.daily.time.slice(0, 3).map((day, i) => (
@@ -482,7 +498,10 @@ export function LocationWeather(): React.JSX.Element {
                       °
                     </small>
                   </span>
-                  <small>{data.daily.precipitation_probability_max[i] ?? '—'}% rain</small>
+                  <small>
+                    {data.daily.precipitation_probability_max[i] ?? '—'}
+                    <Tr text={'% rain'} />
+                  </small>
                 </div>
               ))}
             </div>
@@ -496,9 +515,9 @@ export function LocationWeather(): React.JSX.Element {
               </span>
             </footer>
             <p className="weather-source">
-              Open-Meteo · model estimate ·{' '}
+              <Tr text={'Open-Meteo · model estimate ·'} />{' '}
               <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">
-                Weather data
+                <Tr text={'Weather data'} />
               </a>
             </p>
           </>
@@ -536,7 +555,7 @@ export function LocationWeather(): React.JSX.Element {
           onClick={() => setExpanded(!expanded)}
         >
           <span>
-            <MapPin /> YOUR LOCATION
+            <MapPin /> <Tr text={'YOUR LOCATION'} before after />
           </span>
           <span>
             <i
@@ -560,7 +579,9 @@ export function LocationWeather(): React.JSX.Element {
           <button type="button" className="map-empty" onClick={() => setExpanded(true)}>
             <Navigation />
             <span>{busy ? 'Finding your location…' : 'Make this your corner of the world'}</span>
-            <small>Use Windows location or pin a place</small>
+            <small>
+              <Tr text={'Use Windows location or pin a place'} />
+            </small>
           </button>
         )}
         <div className="map-caption">
@@ -574,7 +595,7 @@ export function LocationWeather(): React.JSX.Element {
           {place?.accuracy_m != null && (
             <small>
               {place.coarse ? 'Approximate · your internet provider' : place.source} · ±
-              {Math.round(place.accuracy_m).toLocaleString()} m ·{' '}
+              {Math.round(place.accuracy_m).toLocaleString()} <Tr text={'m ·'} before />{' '}
               {place.timestamp
                 ? new Date(place.timestamp * 1000).toLocaleTimeString([], {
                     hour: '2-digit',
@@ -594,7 +615,9 @@ export function LocationWeather(): React.JSX.Element {
                   void savePin()
                 }}
               >
-                <label htmlFor="pin-name">Name this pin</label>
+                <label htmlFor="pin-name">
+                  <Tr text={'Name this pin'} />
+                </label>
                 <div className="location-search">
                   <input
                     id="pin-name"
@@ -604,7 +627,9 @@ export function LocationWeather(): React.JSX.Element {
                     onChange={(event) => setDraft({ ...draft, name: event.target.value })}
                     autoFocus
                   />
-                  <button disabled={busy}>Save pin</button>
+                  <button disabled={busy}>
+                    <Tr text={'Save pin'} />
+                  </button>
                 </div>
                 <div className="location-mode-actions">
                   {['Home', 'Work', 'School', 'Gym'].map((name) => (
@@ -613,21 +638,18 @@ export function LocationWeather(): React.JSX.Element {
                     </button>
                   ))}
                   <button type="button" onClick={() => setDraft(null)}>
-                    Cancel
+                    <Tr text={'Cancel'} />
                   </button>
                 </div>
                 <small>
                   {draft.address || 'Looking up the address…'} · {draft.latitude.toFixed(5)},{' '}
-                  {draft.longitude.toFixed(5)} · drag the pin to adjust
+                  {draft.longitude.toFixed(5)} <Tr text={'· drag the pin to adjust'} before after />
                 </small>
               </form>
             )}
             {place?.coarse && !place.pinned && !draft && (
               <p className="location-tip">
-                This PC has no Wi-Fi or GPS, so Windows only knows your internet provider&apos;s
-                location, which is in the right city but not your street. Click the map where you
-                really are and save it as Home. Marvi will use that pin whenever Windows puts you
-                nearby.
+                <Tr text="This PC has no Wi-Fi or GPS, so Windows only knows your internet provider's location, which is in the right city but not your street. Click the map where you really are and save it as Home. Marvi will use that pin whenever Windows puts you nearby." />
               </p>
             )}
             <form
@@ -643,7 +665,9 @@ export function LocationWeather(): React.JSX.Element {
                 })
               }}
             >
-              <label htmlFor="location-city">Find a place</label>
+              <label htmlFor="location-city">
+                <Tr text={'Find a place'} />
+              </label>
               <div className="location-search">
                 <input
                   id="location-city"
@@ -654,12 +678,18 @@ export function LocationWeather(): React.JSX.Element {
                     setPlaces([])
                   }}
                   maxLength={100}
-                  placeholder="Address, street, shop or city"
+                  placeholder={t('Address, street, shop or city')}
                 />
-                <button disabled={busy || query.trim().length < 2}>Search</button>
+                <button disabled={busy || query.trim().length < 2}>
+                  <Tr text={'Search'} />
+                </button>
               </div>
             </form>
-            {searched && places.length === 0 && <p>No matches. Try a street or a nearby city.</p>}
+            {searched && places.length === 0 && (
+              <p>
+                <Tr text={'No matches. Try a street or a nearby city.'} />
+              </p>
+            )}
             <div className="location-results">
               {places.map((candidate) => (
                 <button
@@ -687,7 +717,7 @@ export function LocationWeather(): React.JSX.Element {
               ))}
             </div>
             {pins.length > 0 && (
-              <ul className="location-pins" aria-label="Your pinned places">
+              <ul className="location-pins" aria-label={t('Your pinned places')}>
                 {pins.map((pin) => {
                   const main = same(pin, location?.settings.saved)
                   return (
@@ -695,7 +725,7 @@ export function LocationWeather(): React.JSX.Element {
                       <button
                         type="button"
                         className="pin-name"
-                        title="Show on map"
+                        title={t('Show on map')}
                         onClick={() =>
                           setFocus({
                             latitude: pin.latitude,
@@ -705,7 +735,11 @@ export function LocationWeather(): React.JSX.Element {
                         }
                       >
                         <MapPin /> {pin.label}
-                        {main && <small>Main</small>}
+                        {main && (
+                          <small>
+                            <Tr text={'Main'} />
+                          </small>
+                        )}
                       </button>
                       {!main && (
                         <button
@@ -713,7 +747,7 @@ export function LocationWeather(): React.JSX.Element {
                           type="button"
                           onClick={() => void configure({ saved: pin })}
                         >
-                          Make main
+                          <Tr text={'Make main'} />
                         </button>
                       )}
                       <button
@@ -722,7 +756,7 @@ export function LocationWeather(): React.JSX.Element {
                         aria-label={`Remove ${pin.label}`}
                         onClick={() => removePin(pin)}
                       >
-                        Remove
+                        <Tr text={'Remove'} />
                       </button>
                     </li>
                   )
@@ -736,7 +770,7 @@ export function LocationWeather(): React.JSX.Element {
                   type="button"
                   onClick={() => void configure({ mode: 'automatic' })}
                 >
-                  <LocateFixed /> Use Windows location
+                  <LocateFixed /> <Tr text={'Use Windows location'} before after />
                 </button>
               )}
               {location?.settings.mode === 'automatic' && (
@@ -745,7 +779,7 @@ export function LocationWeather(): React.JSX.Element {
                   type="button"
                   onClick={() => void perform(() => window.marvi.refreshLocation())}
                 >
-                  <RefreshCw /> Refresh location
+                  <RefreshCw /> <Tr text={'Refresh location'} before after />
                 </button>
               )}
               {location?.settings.saved && location.settings.mode !== 'saved' && (
@@ -754,7 +788,8 @@ export function LocationWeather(): React.JSX.Element {
                   type="button"
                   onClick={() => void configure({ mode: 'saved' })}
                 >
-                  Always use {location.settings.saved.label.split(',')[0]}
+                  <Tr text={'Always use'} after />
+                  {location.settings.saved.label.split(',')[0]}
                 </button>
               )}
               <button
@@ -762,31 +797,39 @@ export function LocationWeather(): React.JSX.Element {
                 type="button"
                 onClick={() => void configure({ mode: 'off' })}
               >
-                Turn off
+                <Tr text={'Turn off'} />
               </button>
               {location?.settings.mode === 'automatic' && (
                 <button type="button" onClick={() => void window.marvi?.openLocationSettings()}>
-                  Windows permissions
+                  <Tr text={'Windows permissions'} />
                 </button>
               )}
             </div>
             {location?.status === 'denied' && (
               <p>
-                Windows location access is denied. Enable it in Windows permissions, or pin a place
-                on the map.
+                <Tr
+                  text={
+                    'Windows location access is denied. Enable it in Windows permissions, or pin a place on the map.'
+                  }
+                />
               </p>
             )}
             {location?.settings.mode === 'automatic' &&
               ['unavailable', 'timeout', 'error', 'stale'].includes(location.status) && (
                 <p>
-                  Windows could not provide a fresh position. Refresh, or pin a place on the map.
+                  <Tr
+                    text={
+                      'Windows could not provide a fresh position. Refresh, or pin a place on the map.'
+                    }
+                  />
                 </p>
               )}
             <p className="location-disclosure">
-              Weather requests share approximate coordinates with Open-Meteo. Place search and pin
-              addresses are looked up with Photon (OpenStreetMap data). Map tiles share the viewed
-              area with OpenStreetMap. Pins stay on this PC. Automatic fixes are not saved as
-              location history; tool answers follow normal conversation retention.
+              <Tr
+                text={
+                  'Weather requests share approximate coordinates with Open-Meteo. Place search and pin addresses are looked up with Photon (OpenStreetMap data). Map tiles share the viewed area with OpenStreetMap. Pins stay on this PC. Automatic fixes are not saved as location history; tool answers follow normal conversation retention.'
+                }
+              />
             </p>
           </div>
         )}
@@ -797,12 +840,12 @@ export function LocationWeather(): React.JSX.Element {
             target="_blank"
             rel="noreferrer"
           >
-            © OpenStreetMap contributors
+            <Tr text={'© OpenStreetMap contributors'} />
           </a>
         )}
         {busy && (
           <p className="location-feedback" role="status">
-            Updating… Windows may ask for location permission.
+            <Tr text={'Updating… Windows may ask for location permission.'} />
           </p>
         )}
         {error && (

@@ -1,3 +1,5 @@
+import { t } from '../../store/locale'
+import { Tr } from '../../store/locale'
 /**
  * Sub-agents on screen: the status-bar roster, the job card Chat and Voice
  * draw when Marvi hands work off, and a job's live transcript.
@@ -98,14 +100,23 @@ export function TranscriptView({
 }: {
   detail: AgentJobDetail | null | undefined
 }): React.JSX.Element {
-  if (detail === undefined) return <p className="agent-transcript-empty">Loading…</p>
+  if (detail === undefined)
+    return (
+      <p className="agent-transcript-empty">
+        <Tr text={'Loading…'} />
+      </p>
+    )
   if (detail === null)
-    return <p className="agent-transcript-empty">This job is gone — Marvi restarted since.</p>
+    return (
+      <p className="agent-transcript-empty">
+        <Tr text={'This job is gone — Marvi restarted since.'} />
+      </p>
+    )
   return (
     <div className="agent-transcript">
       <p className="agent-transcript-task">{detail.task}</p>
       {detail.todos.length ? (
-        <ul className="agent-todos" aria-label="Its list">
+        <ul className="agent-todos" aria-label={t('Its list')}>
           {detail.todos.map((todo, index) => (
             <li className={`is-${todo.status}`} key={index}>
               <span aria-hidden="true">
@@ -120,7 +131,7 @@ export function TranscriptView({
           ))}
         </ul>
       ) : null}
-      <ol className="agent-events" aria-label="What it did" aria-live="polite">
+      <ol className="agent-events" aria-label={t('What it did')} aria-live="polite">
         {detail.events.map((event, index) => (
           <li className={`agent-event is-${event.kind} is-${event.outcome ?? 'none'}`} key={index}>
             <span aria-hidden="true" className="agent-event-mark">
@@ -224,7 +235,7 @@ export function AgentJobCard({
               }}
               type="button"
             >
-              <Square aria-hidden="true" size={11} /> STOP
+              <Square aria-hidden="true" size={11} /> <Tr text={'STOP'} before after />
             </button>
           ) : null}
         </div>
@@ -262,7 +273,10 @@ export function DelegateCard({
   if (receipt.ok === false || !receipt.id) {
     return (
       <div className="agent-card is-failed agent-card-refused">
-        <strong>Could not hand this to {agent}</strong>
+        <strong>
+          <Tr text={'Could not hand this to'} after />
+          {agent}
+        </strong>
         <p className="agent-card-line">{receipt.detail ?? 'The Gateway refused it.'}</p>
       </div>
     )
@@ -286,7 +300,7 @@ export function AgentJobsStrip(): React.JSX.Element | null {
   const recent = (feed?.jobs ?? []).filter((job) => !live.includes(job)).slice(0, 2)
   if (!live.length && !recent.length) return null
   return (
-    <div className="agent-strip" aria-label="Sub-agents">
+    <div className="agent-strip" aria-label={t('Sub-agents')}>
       {[...live, ...recent].map((job) => (
         <AgentJobCard job={job} key={job.id} roster={feed?.agents} />
       ))}
@@ -334,14 +348,23 @@ export function AgentsPanel({ feed }: { feed: ReturnType<typeof $agents.get> }):
   const [chosen, setChosen] = useState<string | null>(null)
   const live = liveJobs(feed)
   const recent = (feed?.jobs ?? []).filter((job) => !live.includes(job)).slice(0, 3)
-  if (!feed) return <p className="agents-panel-empty">Sub-agents are not reachable yet.</p>
+  if (!feed)
+    return (
+      <p className="agents-panel-empty">
+        <Tr text={'Sub-agents are not reachable yet.'} />
+      </p>
+    )
   return (
     <div className="agents-panel-inner">
       <header className="agents-panel-head">
-        <span>SUB-AGENTS</span>
-        <small>Marvi hands them work; you talk to Marvi.</small>
+        <span>
+          <Tr text={'SUB-AGENTS'} />
+        </span>
+        <small>
+          <Tr text={'Marvi hands them work; you talk to Marvi.'} />
+        </small>
       </header>
-      <ul className="agents-roster" aria-label="Sub-agents">
+      <ul className="agents-roster" aria-label={t('Sub-agents')}>
         {feed.agents.map((agent) => {
           const working = live.find((job) => job.agent === agent.key)
           const expanded = chosen === agent.key
@@ -376,17 +399,23 @@ export function AgentsPanel({ feed }: { feed: ReturnType<typeof $agents.get> }):
           )
         })}
       </ul>
-      <section className="agents-panel-section" aria-label="Working now">
-        <h3>WORKING NOW</h3>
+      <section className="agents-panel-section" aria-label={t('Working now')}>
+        <h3>
+          <Tr text={'WORKING NOW'} />
+        </h3>
         {live.length ? (
           live.map((job) => <AgentJobCard job={job} key={job.id} roster={feed.agents} />)
         ) : (
-          <p className="agents-panel-empty">Nobody is working.</p>
+          <p className="agents-panel-empty">
+            <Tr text={'Nobody is working.'} />
+          </p>
         )}
       </section>
       {recent.length ? (
-        <section className="agents-panel-section" aria-label="Recently">
-          <h3>RECENTLY</h3>
+        <section className="agents-panel-section" aria-label={t('Recently')}>
+          <h3>
+            <Tr text={'RECENTLY'} />
+          </h3>
           {recent.map((job) => (
             <AgentJobCard job={job} key={job.id} roster={feed.agents} />
           ))}

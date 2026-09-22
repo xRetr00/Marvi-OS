@@ -1,3 +1,5 @@
+import { t } from '../store/locale'
+import { Tr } from '../store/locale'
 /**
  * The photographs of somebody who was in the room while you were not.
  *
@@ -109,7 +111,7 @@ export function VisitorPhotos({
   return (
     <div className="vis-backdrop" onClick={onClose} role="presentation">
       <div
-        aria-label="Photographs of a visitor"
+        aria-label={t('Photographs of a visitor')}
         className="vis-modal"
         onClick={(event) => event.stopPropagation()}
         role="dialog"
@@ -122,7 +124,7 @@ export function VisitorPhotos({
               {localMoment(sighting.at)}
             </p>
           </div>
-          <button aria-label="Close" onClick={onClose} type="button">
+          <button aria-label={t('Close')} onClick={onClose} type="button">
             <X aria-hidden="true" />
           </button>
         </header>
@@ -131,7 +133,7 @@ export function VisitorPhotos({
 
         {photos.length === 0 ? (
           <p className="vis-empty">
-            <Camera aria-hidden="true" /> No photographs were taken.
+            <Camera aria-hidden="true" /> <Tr text={'No photographs were taken.'} before after />
           </p>
         ) : (
           <>
@@ -141,7 +143,7 @@ export function VisitorPhotos({
               {photos.length > 1 && (
                 <>
                   <button
-                    aria-label="Previous photograph"
+                    aria-label={t('Previous photograph')}
                     className="vis-step is-back"
                     disabled={shown === 0}
                     onClick={() => setShown((n) => Math.max(n - 1, 0))}
@@ -150,7 +152,7 @@ export function VisitorPhotos({
                     <ChevronLeft aria-hidden="true" />
                   </button>
                   <button
-                    aria-label="Next photograph"
+                    aria-label={t('Next photograph')}
                     className="vis-step is-next"
                     disabled={shown >= photos.length - 1}
                     onClick={() => setShown((n) => Math.min(n + 1, photos.length - 1))}
@@ -185,10 +187,10 @@ export function VisitorPhotos({
 
         <div className="vis-actions">
           <button className="vis-later" onClick={onLater} type="button">
-            See later
+            <Tr text={'See later'} />
           </button>
           <button className="vis-seen" onClick={onSeen} type="button">
-            Seen
+            <Tr text={'Seen'} />
           </button>
         </div>
       </div>

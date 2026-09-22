@@ -1,3 +1,4 @@
+import { t } from '../../store/locale'
 import { Blocks } from 'lucide-react'
 
 import { ControlEmpty, ControlPage, ControlSection } from '../control-surface'
@@ -13,14 +14,18 @@ export function CapabilityPluginsPanel(): React.JSX.Element {
   return (
     <ControlPage
       className="capabilities-page"
-      description="Third-party plugins that extend what Marvi can do. Distinct from Settings > Plugins, which manages Marvi's own bundled services."
-      title="Plugins"
+      description={t(
+        "Third-party plugins that extend what Marvi can do. Distinct from Settings > Plugins, which manages Marvi's own bundled services."
+      )}
+      title={t('Plugins')}
     >
-      <ControlSection icon={Blocks} title="Installed plugins">
+      <ControlSection icon={Blocks} title={t('Installed plugins')}>
         <ControlEmpty
-          description="There is no third-party plugin catalog yet. Marvi's own services, like Smart Room, are managed from Settings > Plugins."
+          description={t(
+            "There is no third-party plugin catalog yet. Marvi's own services, like Smart Room, are managed from Settings > Plugins."
+          )}
           icon={Blocks}
-          title="No plugins installed"
+          title={t('No plugins installed')}
         />
       </ControlSection>
     </ControlPage>

@@ -128,7 +128,7 @@ export function Composer({
         >
           <ComposerPrimitive.Unstable_TriggerPopover
             adapter={slash.adapter}
-            aria-label="Commands"
+            aria-label={t('Commands')}
             char="/"
             className="chat-slash"
             matcher={slashTrigger}
@@ -161,7 +161,7 @@ export function Composer({
           />
           <div className="chat-compose-field" data-active={active ? 'true' : 'false'}>
             {attachments.length ? (
-              <div className="chat-attachments" aria-label="Pending attachments">
+              <div className="chat-attachments" aria-label={t('Pending attachments')}>
                 {attachments.map((attachment) => (
                   <PendingAttachment
                     attachment={attachment}

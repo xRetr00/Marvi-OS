@@ -1,3 +1,4 @@
+import { Tr } from '../store/locale'
 /**
  * Where Marvi's memories came from, and which of them are not memories.
  *
@@ -93,12 +94,14 @@ export function MemoryHealth({ page }: { page: MemoryPage }): React.JSX.Element 
   return (
     <section className="mem-health">
       <h3>
-        <Database aria-hidden="true" /> What is in here
+        <Database aria-hidden="true" /> <Tr text={'What is in here'} before after />
       </h3>
       <p className="mem-health-sub">
-        {page.total} memories · {entries.length - episodic} facts, {episodic} moments ·{' '}
-        {page.summary.graph?.entities ?? 0} entities and {page.summary.graph?.relations ?? 0}{' '}
-        relationships between them
+        {page.total} <Tr text={'memories ·'} before after />
+        {entries.length - episodic} <Tr text={'facts,'} before after />
+        {episodic} <Tr text={'moments ·'} before /> {page.summary.graph?.entities ?? 0}{' '}
+        <Tr text={'entities and'} before after />
+        {page.summary.graph?.relations ?? 0} <Tr text={'relationships between them'} after />
       </p>
 
       {/* By source, because that is the axis the difference shows up on. */}
@@ -129,11 +132,15 @@ export function MemoryHealth({ page }: { page: MemoryPage }): React.JSX.Element 
           <AlertTriangle aria-hidden="true" />
           <div>
             <strong>
-              {narrating.length} of these describe the conversation rather than a fact
+              {narrating.length}{' '}
+              <Tr text={'of these describe the conversation rather than a fact'} before after />
             </strong>
             <p>
-              They came in before the store started refusing them, and each one still comes back on
-              recall as though it bore on the turn.
+              <Tr
+                text={
+                  'They came in before the store started refusing them, and each one still comes back on recall as though it bore on the turn.'
+                }
+              />
             </p>
             <ul>
               {narrating.slice(0, 4).map((entry) => (
@@ -143,17 +150,24 @@ export function MemoryHealth({ page }: { page: MemoryPage }): React.JSX.Element 
                 </li>
               ))}
             </ul>
-            {narrating.length > 4 && <small>and {narrating.length - 4} more</small>}
+            {narrating.length > 4 && (
+              <small>
+                <Tr text={'and'} after />
+                {narrating.length - 4} <Tr text={'more'} before />
+              </small>
+            )}
           </div>
         </div>
       )}
 
       <div className="mem-learned">
         <h4>
-          <Sparkles aria-hidden="true" /> Recently learned
+          <Sparkles aria-hidden="true" /> <Tr text={'Recently learned'} before after />
         </h4>
         {learned.length === 0 ? (
-          <p className="mem-learned-empty">Nothing new in the last three days.</p>
+          <p className="mem-learned-empty">
+            <Tr text={'Nothing new in the last three days.'} />
+          </p>
         ) : (
           <ul>
             {learned.map((entry) => (

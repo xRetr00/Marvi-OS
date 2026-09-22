@@ -1,3 +1,4 @@
+import { Tr } from '../store/locale'
 import { AbstractIcon, type AbstractIconName } from './abstract-icon'
 
 export function PageLead({
@@ -22,7 +23,8 @@ export function PageLead({
         <p>{description}</p>
       </div>
       <span className="page-lead-module" aria-hidden="true">
-        MODULE / {title.toUpperCase()}
+        <Tr text={'MODULE /'} after />
+        {title.toUpperCase()}
       </span>
     </header>
   )

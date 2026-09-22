@@ -1,3 +1,5 @@
+import { t } from '../store/locale'
+import { Tr } from '../store/locale'
 /**
  * The two cards beside the orb: what she is doing, and what is coming up.
  *
@@ -173,11 +175,13 @@ export function ActivityView({
   const sources = sourcesFrom(calls)
 
   return (
-    <section className="voice-card voice-activity-card" aria-label="What Marvi is doing">
+    <section className="voice-card voice-activity-card" aria-label={t('What Marvi is doing')}>
       {rig ? <div className="voice-card-rig">{rig}</div> : null}
       <div className="status-context-breakdown" data-static="true">
         <div className="voice-card-meter">
-          <span className="status-context-label">Context</span>
+          <span className="status-context-label">
+            <Tr text={'Context'} />
+          </span>
           <span className="status-detail">
             {context.window
               ? `${compactTokens(context.used)}/${compactTokens(context.window)}`
@@ -235,7 +239,9 @@ export function ActivityView({
               ) : null}
             </span>
             <strong>
-              Used {calls.length} tool{calls.length === 1 ? '' : 's'}
+              <Tr text={'Used'} after />
+              {calls.length} <Tr text={'tool'} before />
+              {calls.length === 1 ? '' : 's'}
               {running ? ` · ${running} running` : ''}
             </strong>
             <ChevronDown
@@ -261,20 +267,27 @@ export function ActivityView({
                       .join(' ')}
                   </span>
                   {call.outcome === 'failed' ? (
-                    <CircleAlert aria-label="failed" size={13} strokeWidth={1.8} />
+                    <CircleAlert aria-label={t('failed')} size={13} strokeWidth={1.8} />
                   ) : call.outcome === 'running' ? (
-                    <span className="voice-card-spinner" aria-label="running" />
+                    <span className="voice-card-spinner" aria-label={t('running')} />
                   ) : (
-                    <CheckCircle2 aria-label="done" size={13} strokeWidth={1.8} />
+                    <CheckCircle2 aria-label={t('done')} size={13} strokeWidth={1.8} />
                   )}
-                  {call.ms ? <span className="voice-card-step-ms">{call.ms}ms</span> : null}
+                  {call.ms ? (
+                    <span className="voice-card-step-ms">
+                      {call.ms}
+                      <Tr text={'ms'} />
+                    </span>
+                  ) : null}
                 </div>
               ))}
             </div>
           </div>
         </>
       ) : (
-        <p className="voice-card-empty">No tools used yet</p>
+        <p className="voice-card-empty">
+          <Tr text={'No tools used yet'} />
+        </p>
       )}
 
       {/* Where she has been, which is a different question from what she did.
@@ -288,7 +301,8 @@ export function ActivityView({
             type="button"
           >
             <strong>
-              {sources.length} source{sources.length === 1 ? '' : 's'}
+              {sources.length} <Tr text={'source'} before />
+              {sources.length === 1 ? '' : 's'}
             </strong>
             <ChevronDown
               aria-hidden="true"
@@ -390,7 +404,7 @@ export function CalendarView({
   }
 
   return (
-    <section className="voice-card voice-calendar-card" aria-label="Calendar">
+    <section className="voice-card voice-calendar-card" aria-label={t('Calendar')}>
       <header className="voice-calendar-head">
         <motion.p
           key={format(month, 'MMMM yyyy')}
@@ -403,13 +417,17 @@ export function CalendarView({
         </motion.p>
         <div className="voice-calendar-nav">
           <button
-            aria-label="Previous month"
+            aria-label={t('Previous month')}
             onClick={() => goto(subMonths(month, 1))}
             type="button"
           >
             <ChevronLeft aria-hidden="true" size={15} strokeWidth={1.8} />
           </button>
-          <button aria-label="Next month" onClick={() => goto(addMonths(month, 1))} type="button">
+          <button
+            aria-label={t('Next month')}
+            onClick={() => goto(addMonths(month, 1))}
+            type="button"
+          >
             <ChevronRight aria-hidden="true" size={15} strokeWidth={1.8} />
           </button>
         </div>
@@ -455,9 +473,14 @@ export function CalendarView({
       {!calendar.connected ? (
         // Distinct from an empty day: only one of these is something the user
         // can act on.
-        <p className="voice-card-empty">Calendar not connected</p>
+        <p className="voice-card-empty">
+          <Tr text={'Calendar not connected'} />
+        </p>
       ) : onPicked.length === 0 ? (
-        <p className="voice-card-empty">Nothing on {format(picked, 'EEE d MMM')}</p>
+        <p className="voice-card-empty">
+          <Tr text={'Nothing on'} after />
+          {format(picked, 'EEE d MMM')}
+        </p>
       ) : (
         <ul className="voice-calendar-events">
           {onPicked.slice(0, 4).map((event) => (

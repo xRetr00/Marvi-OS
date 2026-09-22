@@ -1,3 +1,4 @@
+import { Tr } from '../../store/locale'
 /**
  * A turn, drawn on assistant-ui's primitives and Marvi's stylesheet.
  *
@@ -190,7 +191,9 @@ export function AssistantMessage({
     >
       <MarviAvatar className="chat-turn-avatar" />
       <div className="chat-turn-column">
-        <span className="sr-only">MARVI</span>
+        <span className="sr-only">
+          <Tr text={'MARVI'} />
+        </span>
         <AssistantParts message={message} />
         {failed ? <MessageError error={String(message.status.error ?? '')} /> : null}
         <TooltipProvider>

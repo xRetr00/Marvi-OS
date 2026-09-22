@@ -1,3 +1,5 @@
+import { t } from '../store/locale'
+import { Tr } from '../store/locale'
 /**
  * Cron jobs as things with a next time, rather than rows in a registry.
  *
@@ -45,7 +47,8 @@ export function ScheduleCards({
       {next && (
         <p className="sched-next">
           <Timer aria-hidden="true" />
-          Next: <strong>{next.name}</strong> {untilNext(next.next_run)}
+          <Tr text={'Next:'} after />
+          <strong>{next.name}</strong> {untilNext(next.next_run)}
         </p>
       )}
 
@@ -74,8 +77,8 @@ export function ScheduleCards({
                 <span className="sched-eta">{untilNext(row.next_run)}</span>
               )}
               {row.insist && (
-                <span className="sched-insist" title="Speaks through quiet hours">
-                  insists
+                <span className="sched-insist" title={t('Speaks through quiet hours')}>
+                  <Tr text={'insists'} />
                 </span>
               )}
             </div>
@@ -100,12 +103,15 @@ export function ScheduleCards({
               <p className="sched-outcome is-bad">{row.last_error}</p>
             ) : row.last_run ? (
               <p className="sched-outcome">
-                ran {row.last_run.slice(0, 16).replace('T', ' ')}
+                <Tr text={'ran'} after />
+                {row.last_run.slice(0, 16).replace('T', ' ')}
                 {row.completed_runs > 1 ? ` · ${row.completed_runs} times` : ''}
                 {row.last_tokens ? ` · ${row.last_tokens.toLocaleString()} tokens` : ''}
               </p>
             ) : (
-              <p className="sched-outcome is-quiet">has not run yet</p>
+              <p className="sched-outcome is-quiet">
+                <Tr text={'has not run yet'} />
+              </p>
             )}
 
             {row.last_output && <pre className="sched-output">{row.last_output}</pre>}
@@ -120,7 +126,7 @@ export function ScheduleCards({
                 {busy?.id === row.id && busy.action === 'run' ? 'Running…' : 'Run now'}
               </button>
               <button disabled={busy?.id === row.id} onClick={() => onEdit(row)} type="button">
-                <Pencil aria-hidden="true" /> Edit
+                <Pencil aria-hidden="true" /> <Tr text={'Edit'} before after />
               </button>
               <button
                 disabled={busy?.id === row.id}
@@ -135,7 +141,7 @@ export function ScheduleCards({
                 onClick={() => onAct(row.id, 'remove')}
                 type="button"
               >
-                <Trash2 aria-hidden="true" /> Remove
+                <Trash2 aria-hidden="true" /> <Tr text={'Remove'} before after />
               </button>
             </div>
           </article>

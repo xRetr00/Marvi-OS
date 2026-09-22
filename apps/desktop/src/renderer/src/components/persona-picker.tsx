@@ -1,3 +1,4 @@
+import { Tr } from '../store/locale'
 /**
  * Which Marvi you are talking to.
  *
@@ -60,8 +61,12 @@ export function PersonaPicker(): React.JSX.Element | null {
   return (
     <section className="persona">
       <header>
-        <h2>Who she is</h2>
-        <p>How she talks and when she speaks first. It takes effect on the next turn.</p>
+        <h2>
+          <Tr text={'Who she is'} />
+        </h2>
+        <p>
+          <Tr text={'How she talks and when she speaks first. It takes effect on the next turn.'} />
+        </p>
       </header>
       <div className="persona-list">
         {offered.map((one) => (
@@ -84,8 +89,11 @@ export function PersonaPicker(): React.JSX.Element | null {
         ))}
       </div>
       <p className="persona-foot">
-        The chat window has its own — longer answers, Markdown, code in code blocks — whichever you
-        choose here.
+        <Tr
+          text={
+            'The chat window has its own — longer answers, Markdown, code in code blocks — whichever you choose here.'
+          }
+        />
       </p>
     </section>
   )

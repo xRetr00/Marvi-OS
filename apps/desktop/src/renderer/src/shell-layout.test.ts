@@ -148,7 +148,7 @@ describe('shell layout', () => {
     expect(app).toContain("'Speech recognition'")
     expect(app).toContain("'Voice synthesis'")
     expect(app).toContain("'Wake word'")
-    expect(app).toContain('title="Restart after a crash"')
+    expect(app).toContain("title={t('Restart after a crash')}")
     expect(app).toContain('[wake.autoRestartSetting]')
     expect(app).toContain("'AUTO RESTART ON'")
     expect(app).toContain("'Appearance'")
@@ -161,8 +161,8 @@ describe('shell layout', () => {
     expect(app).toContain('aria-expanded={voiceOpen}')
     expect(app).toContain('aria-expanded={appearanceOpen}')
     expect(app).not.toContain("page === 'Speech'")
-    expect(app).toContain('title="Speech to text · STT"')
-    expect(app).toContain('title="Text to speech · TTS"')
+    expect(app).toContain("title={t('Speech to text · STT')}")
+    expect(app).toContain("title={t('Text to speech · TTS')}")
     expect(app).toContain('page?.engines ?? []')
     expect(app).toContain('[page.engineSetting]: next')
     expect(app).toContain('[page.setting]: engine?.defaultVoice')
@@ -170,9 +170,9 @@ describe('shell layout', () => {
     // the lookahead now, and what it changes is when a word appears on screen,
     // not how accurate the recogniser is. Measured, the two move together --
     // 4,115ms and 71% clean turns against 1,868ms and 58%.
-    expect(app).toContain('title="Subtitle speed"')
-    expect(app).toContain('title="Window translucency"')
-    expect(app).toContain('title="Alignment"')
+    expect(app).toContain("title={t('Subtitle speed')}")
+    expect(app).toContain("title={t('Window translucency')}")
+    expect(app).toContain("title={t('Alignment')}")
   })
 
   it('uses the same working recogniser picker on Voice and in Settings', () => {
@@ -187,15 +187,16 @@ describe('shell layout', () => {
   it('separates Room and Vision with the smart room hierarchy', () => {
     expect(app).toContain('<RoomPanel runtime={runtime} view="room" />')
     expect(app).toContain('<RoomPanel runtime={runtime} view="vision" />')
-    expect(app).toContain('title="Live room"')
-    expect(app).toContain('id="room-light-title">Light control')
-    expect(app).toContain('aria-label="Light white temperature"')
-    expect(app).toContain('aria-label="Custom light color"')
-    expect(app).toContain('title="Devices and presence"')
+    expect(app).toContain("title={t('Live room')}")
+    expect(app).toContain('id="room-light-title"')
+    expect(app).toContain("<Tr text={'Light control'} />")
+    expect(app).toContain("aria-label={t('Light white temperature')}")
+    expect(app).toContain("aria-label={t('Custom light color')}")
+    expect(app).toContain("title={t('Devices and presence')}")
     expect(app).toContain('className="vision-signal-board"')
     expect(app).not.toContain('getRoomVisionPreview')
-    expect(app).toContain('title="Live perception"')
-    expect(app).toContain('title="Face identity"')
+    expect(app).toContain("title={t('Live perception')}")
+    expect(app).toContain("title={t('Face identity')}")
     expect(app).toContain('className="face-review-item"')
     expect(css).toContain('container-name: room-page')
     expect(css).toContain('@container room-page (max-width: 720px)')
@@ -240,11 +241,11 @@ describe('shell layout', () => {
   })
 
   it('shows face model residency and keeps Room state fresh', () => {
-    expect(app).toContain('title="Face recognition model"')
+    expect(app).toContain("title={t('Face recognition model')}")
     expect(app).toContain("vision.face_model ?? 'ArcFace R50 · SCRFD-10G'")
     expect(app).toContain("faceModelLoaded ? 'loaded' : 'not loaded'")
     expect(app).toContain("roomCommand('room_refresh', {})")
-    expect(app).toContain('Auto · 4s · {lastRoomRefresh}')
+    expect(app).toContain("<Tr text={'Auto · 4s ·'}")
     expect(app).toContain('setInterval(() => void refresh(), 4_000)')
     expect(css).toContain('.room-runtime-actions')
   })
@@ -268,9 +269,9 @@ describe('shell layout', () => {
       app.indexOf('return (', app.indexOf('const statusbar = ('))
     )
     expect(statusbar).toContain('<StatusHealthItem')
-    expect(statusbar).toContain('label="Gateway"')
-    expect(statusbar).toContain('label="RTC"')
-    expect(statusbar).toContain('label="Voice"')
+    expect(statusbar).toContain("label={t('Gateway')}")
+    expect(statusbar).toContain("label={t('RTC')}")
+    expect(statusbar).toContain("label={t('Voice')}")
     expect(statusbar).toContain('icon={Server}')
     expect(statusbar).toContain('icon={Radio}')
     expect(statusbar).toContain('icon={Waves}')
@@ -377,7 +378,7 @@ describe('capabilities', () => {
   it('offers somewhere to put the Composio key, not just the diagnosis', () => {
     // Deleting the old Accounts panel took the only field for the key with
     // it, so the page reported "not configured" and gave nowhere to fix it.
-    expect(panel).toContain('aria-label="Composio API key"')
+    expect(panel).toContain("aria-label={t('Composio API key')}")
     expect(panel).toContain('configureAccounts')
     expect(panel).toContain('type="password"')
   })
@@ -475,7 +476,7 @@ describe('memory reader', () => {
     // On by default, so the toggle has to exist for anyone who wants the
     // search results raw. `reader !== false` in the normaliser means an older
     // Gateway that does not report it still shows as on, which is what it is.
-    expect(app).toContain('title="Reading the memories"')
+    expect(app).toContain("title={t('Reading the memories')}")
     expect(app).toContain("apply({ reader: next === 'on' })")
     expect(app).toContain("policy?.reader === false ? 'off' : 'on'")
   })

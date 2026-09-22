@@ -1,3 +1,4 @@
+import { Tr } from './store/locale'
 import { useStore } from '@nanostores/react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -664,25 +665,25 @@ function MainSurface(): React.JSX.Element {
   const statusbar = (
     <footer className="statusbar" data-shell-context="statusbar">
       <div className="statusbar-side">
-        <div className="status-health-cluster" aria-label="Service health">
+        <div className="status-health-cluster" aria-label={t('Service health')}>
           <StatusHealthItem
             detail={runtime.components.gateway?.detail}
             icon={Server}
-            label="Gateway"
+            label={t('Gateway')}
             onOpen={() => navigate('Overview')}
             state={runtime.state}
           />
           <StatusHealthItem
             detail={runtime.components.livekit?.detail}
             icon={Radio}
-            label="RTC"
+            label={t('RTC')}
             onOpen={() => navigate('Voice')}
             state={runtime.components.livekit?.state}
           />
           <StatusHealthItem
             detail={runtime.components.voice?.detail}
             icon={Waves}
-            label="Voice"
+            label={t('Voice')}
             onOpen={() => navigate('Voice')}
             state={runtime.components.voice?.state}
           />
@@ -697,15 +698,17 @@ function MainSurface(): React.JSX.Element {
         {/* Only when it is on. A Marvi that cannot search the web looks broken
             unless the reason is on screen next to the other modes. */}
         {voice.privacy ? (
-          <UiTooltip label="Privacy mode — nothing leaves this machine" side="top">
+          <UiTooltip label={t('Privacy mode — nothing leaves this machine')} side="top">
             <button
-              aria-label="Privacy mode is on"
+              aria-label={t('Privacy mode is on')}
               className="status-item status-mode"
               onClick={() => setSettings('Preferences')}
               type="button"
             >
               <ShieldCheck aria-hidden="true" className="status-mode-icon is-confirm" />
-              <span>PRIVATE</span>
+              <span>
+                <Tr text={'PRIVATE'} />
+              </span>
             </button>
           </UiTooltip>
         ) : null}
@@ -797,7 +800,9 @@ function MainSurface(): React.JSX.Element {
                   <BrandIcon className="brand-icon-sidebar" />
                   {!collapsed ? (
                     <span className="brand-copy">
-                      <strong>MARVI</strong>
+                      <strong>
+                        <Tr text={'MARVI'} />
+                      </strong>
                       <small>{t('LOCAL INTELLIGENCE', interfaceLocale)}</small>
                     </span>
                   ) : null}
@@ -833,7 +838,7 @@ function MainSurface(): React.JSX.Element {
                   ))}
                 </nav>
 
-                <div className="sidebar-tools" aria-label="Maintenance terminals">
+                <div className="sidebar-tools" aria-label={t('Maintenance terminals')}>
                   {maintenanceError ? (
                     <span className="sidebar-tools-error" role="alert">
                       {maintenanceError}
@@ -1479,7 +1484,10 @@ function RoomPanel({
         <div className="room-runtime-actions">
           {view === 'room' ? (
             <>
-              <span className="room-auto-refresh">Auto · 4s · {lastRoomRefresh}</span>
+              <span className="room-auto-refresh">
+                <Tr text={'Auto · 4s ·'} after />
+                {lastRoomRefresh}
+              </span>
               <ControlButton disabled={refreshing} onClick={() => void refreshRoom()}>
                 <RefreshCw aria-hidden="true" className={refreshing ? 'is-spinning' : ''} />
                 {refreshing ? 'Refreshing' : 'Refresh'}
@@ -1493,12 +1501,12 @@ function RoomPanel({
       {view === 'room' ? (
         <>
           <div className="room-workspace-grid">
-            <ControlSection icon={Gauge} title="Live room">
+            <ControlSection icon={Gauge} title={t('Live room')}>
               {error ? (
                 <ControlEmpty
                   description={error}
                   icon={ShieldAlert}
-                  title="Room state unavailable"
+                  title={t('Room state unavailable')}
                 />
               ) : (
                 roomRows.map(([label, value]) => (
@@ -1516,8 +1524,12 @@ function RoomPanel({
                 <div>
                   <Lightbulb aria-hidden="true" />
                   <div>
-                    <h3 id="room-light-title">Light control</h3>
-                    <p>Live control of the bulb, through the same tool Marvi uses.</p>
+                    <h3 id="room-light-title">
+                      <Tr text={'Light control'} />
+                    </h3>
+                    <p>
+                      <Tr text={'Live control of the bulb, through the same tool Marvi uses.'} />
+                    </p>
                   </div>
                 </div>
                 <ControlPill tone={lightKnown && light.on ? 'ready' : 'neutral'}>
@@ -1553,7 +1565,7 @@ function RoomPanel({
                       disabled={roomControlsDisabled}
                       onClick={() => void press('room_set_light', { on: true })}
                     >
-                      On
+                      <Tr text={'On'} />
                     </ControlButton>
                     <ControlButton
                       aria-pressed={lightKnown && light.on === false}
@@ -1561,7 +1573,7 @@ function RoomPanel({
                       disabled={roomControlsDisabled}
                       onClick={() => void press('room_set_light', { on: false })}
                     >
-                      Off
+                      <Tr text={'Off'} />
                     </ControlButton>
                   </div>
                 </div>
@@ -1569,11 +1581,13 @@ function RoomPanel({
                 <div className="room-light-settings">
                   <label className="room-light-slider">
                     <span>
-                      <b>Brightness</b>
+                      <b>
+                        <Tr text={'Brightness'} />
+                      </b>
                       <output>{lightDraft.brightness}%</output>
                     </span>
                     <input
-                      aria-label="Light brightness"
+                      aria-label={t('Light brightness')}
                       disabled={roomControlsDisabled}
                       max={100}
                       min={1}
@@ -1601,11 +1615,16 @@ function RoomPanel({
                   </label>
                   <label className="room-light-slider is-temperature">
                     <span>
-                      <b>White temperature</b>
-                      <output>{lightDraft.colorTemp}K</output>
+                      <b>
+                        <Tr text={'White temperature'} />
+                      </b>
+                      <output>
+                        {lightDraft.colorTemp}
+                        <Tr text={'K'} />
+                      </output>
                     </span>
                     <input
-                      aria-label="Light white temperature"
+                      aria-label={t('Light white temperature')}
                       disabled={roomControlsDisabled}
                       max={6500}
                       min={2700}
@@ -1634,11 +1653,11 @@ function RoomPanel({
                   </label>
                   <div className="room-light-color-row">
                     <span>
-                      <Palette aria-hidden="true" /> Color
+                      <Palette aria-hidden="true" /> <Tr text={'Color'} before after />
                     </span>
                     <div className="room-light-swatches">
                       <input
-                        aria-label="Custom light color"
+                        aria-label={t('Custom light color')}
                         disabled={roomControlsDisabled}
                         onChange={(event) => {
                           const color = event.target.value
@@ -1668,7 +1687,7 @@ function RoomPanel({
                 </div>
               </div>
 
-              <div className="room-mode-grid" aria-label="Room modes">
+              <div className="room-mode-grid" aria-label={t('Room modes')}>
                 {ROOM_MODES.map((mode) => (
                   <button
                     aria-pressed={modes.active_mode === mode.id}
@@ -1687,7 +1706,7 @@ function RoomPanel({
             </section>
           </div>
 
-          <ControlSection icon={Wifi} title="Devices and presence">
+          <ControlSection icon={Wifi} title={t('Devices and presence')}>
             {[
               ['Light (Tuya bulb)', 'tuya_bulb'],
               ['Socket (Tuya HE20)', 'tuya_he20'],
@@ -1724,7 +1743,7 @@ function RoomPanel({
                       }`
                     : 'No broker configured. Presence and phone location both depend on MQTT.'
               }
-              title="MQTT broker"
+              title={t('MQTT broker')}
             />
             <ControlRow
               action={
@@ -1737,16 +1756,16 @@ function RoomPanel({
                   ? `Reported by ${String(location.source)}`
                   : 'Nothing has reported a phone location yet.'
               }
-              title="Phone (OwnTracks)"
+              title={t('Phone (OwnTracks)')}
             />
           </ControlSection>
 
-          <ControlSection icon={History} title="Recent room events">
+          <ControlSection icon={History} title={t('Recent room events')}>
             {events.length === 0 ? (
               <ControlEmpty
-                description="Notable presence, device, and room changes will appear here."
+                description={t('Notable presence, device, and room changes will appear here.')}
                 icon={Clock3}
-                title="No room events yet"
+                title={t('No room events yet')}
               />
             ) : (
               events.map((event) => (
@@ -1763,11 +1782,16 @@ function RoomPanel({
       ) : (
         <>
           <div className="vision-workspace-grid">
-            <section className="vision-signal-board" aria-label="Local camera processing status">
+            <section
+              className="vision-signal-board"
+              aria-label={t('Local camera processing status')}
+            >
               <header>
                 <div>
                   <Camera aria-hidden="true" />
-                  <span>Camera perception</span>
+                  <span>
+                    <Tr text={'Camera perception'} />
+                  </span>
                 </div>
                 <ControlPill tone={camera === 'ONLINE' ? 'ready' : 'warning'}>
                   {camera.toLowerCase()}
@@ -1782,7 +1806,9 @@ function RoomPanel({
               </div>
               <dl className="vision-signal-facts">
                 <div>
-                  <dt>Identity</dt>
+                  <dt>
+                    <Tr text={'Identity'} />
+                  </dt>
                   <dd>
                     {Array.isArray(vision.identities) && vision.identities.length > 0
                       ? vision.identities.join(', ')
@@ -1790,7 +1816,9 @@ function RoomPanel({
                   </dd>
                 </div>
                 <div>
-                  <dt>Last analysis</dt>
+                  <dt>
+                    <Tr text={'Last analysis'} />
+                  </dt>
                   <dd>
                     {vision.last_inference_at
                       ? String(vision.last_inference_at).slice(11, 19)
@@ -1798,18 +1826,20 @@ function RoomPanel({
                   </dd>
                 </div>
                 <div>
-                  <dt>Motion</dt>
+                  <dt>
+                    <Tr text={'Motion'} />
+                  </dt>
                   <dd>{String(vision.activity ?? 'unknown')}</dd>
                 </div>
               </dl>
             </section>
 
-            <ControlSection icon={Eye} title="Live perception">
+            <ControlSection icon={Eye} title={t('Live perception')}>
               {error ? (
                 <ControlEmpty
                   description={error}
                   icon={ShieldAlert}
-                  title="Vision state unavailable"
+                  title={t('Vision state unavailable')}
                 />
               ) : (
                 visionRows.map(([label, value]) => (
@@ -1830,7 +1860,7 @@ function RoomPanel({
                 : 'No owner enrolled — the camera cannot distinguish you from visitors yet.'
             }
             icon={Users}
-            title="Face identity"
+            title={t('Face identity')}
           >
             <ControlRow
               action={
@@ -1842,20 +1872,28 @@ function RoomPanel({
                 !faceModelLoaded && vision.error ? ` · ${String(vision.error)}` : ''
               }`}
               icon={Brain}
-              title="Face recognition model"
+              title={t('Face recognition model')}
             />
             <div className="face-identity-workspace">
               <div className="face-enrollment-card">
                 <div className="face-enrollment-copy">
-                  <span className="face-kicker">Enroll owner</span>
-                  <strong>Stand alone in front of the room camera</strong>
+                  <span className="face-kicker">
+                    <Tr text={'Enroll owner'} />
+                  </span>
+                  <strong>
+                    <Tr text={'Stand alone in front of the room camera'} />
+                  </strong>
                   <p>
-                    Marvi accepts only clear, centered face samples. Images and embeddings remain in
-                    the Smart Room sidecar.
+                    <Tr
+                      text={
+                        'Marvi accepts only clear, centered face samples. Images and embeddings remain in the Smart Room sidecar.'
+                      }
+                    />
                   </p>
                   <div className="face-enrollment-readiness">
                     <span className={camera === 'ONLINE' ? 'is-ready' : ''}>
-                      <i /> Camera {camera.toLowerCase()}
+                      <i /> <Tr text={'Camera'} before after />
+                      {camera.toLowerCase()}
                     </span>
                     <span className={people === 1 ? 'is-ready' : ''}>
                       <i /> {people === 1 ? 'One face ready' : `${people} faces detected`}
@@ -1869,7 +1907,7 @@ function RoomPanel({
                       onKeyDown={(event) => {
                         if (event.key === 'Enter') void enrol()
                       }}
-                      placeholder="Person name"
+                      placeholder={t('Person name')}
                       value={faceName}
                     />
                     <ControlButton
@@ -1883,19 +1921,28 @@ function RoomPanel({
                     </ControlButton>
                   </div>
                   {vision.error ? (
-                    <span className="face-error">Camera unavailable: {String(vision.error)}</span>
+                    <span className="face-error">
+                      <Tr text={'Camera unavailable:'} after />
+                      {String(vision.error)}
+                    </span>
                   ) : null}
                 </div>
               </div>
 
               <div className="face-known-panel">
                 <header>
-                  <span className="face-kicker">Known people</span>
-                  <strong>{library?.people.length ?? 0} enrolled</strong>
+                  <span className="face-kicker">
+                    <Tr text={'Known people'} />
+                  </span>
+                  <strong>
+                    {library?.people.length ?? 0} <Tr text={'enrolled'} before />
+                  </strong>
                 </header>
                 <div>
                   {(library?.people ?? []).length === 0 ? (
-                    <p>No reviewed identities yet.</p>
+                    <p>
+                      <Tr text={'No reviewed identities yet.'} />
+                    </p>
                   ) : (
                     (library?.people ?? []).map((person) => (
                       <div className="face-known-row" key={person.name}>
@@ -1906,15 +1953,19 @@ function RoomPanel({
                           <span className="face-known-facts">{facesFacts(person)}</span>
                         </div>
                         <div className="face-known-actions">
-                          <output>{person.samples} samples</output>
+                          <output>
+                            {person.samples} <Tr text={'samples'} before />
+                          </output>
                           {person.owner ? (
-                            <ControlPill tone="ready">owner</ControlPill>
+                            <ControlPill tone="ready">
+                              <Tr text={'owner'} />
+                            </ControlPill>
                           ) : (
                             <ControlButton
                               disabled={enrolling}
                               onClick={() => void setOwner(person.name)}
                             >
-                              Make owner
+                              <Tr text={'Make owner'} />
                             </ControlButton>
                           )}
                         </div>
@@ -1928,10 +1979,20 @@ function RoomPanel({
             {(library?.pending ?? []).length > 0 ? (
               <div className="face-review-head">
                 <div>
-                  <span className="face-kicker">Review queue</span>
-                  <strong>{library?.pending.length ?? 0} awaiting review</strong>
+                  <span className="face-kicker">
+                    <Tr text={'Review queue'} />
+                  </span>
+                  <strong>
+                    {library?.pending.length ?? 0} <Tr text={'awaiting review'} before />
+                  </strong>
                 </div>
-                <p>Name a sighting to teach Marvi, or reject it without storing an identity.</p>
+                <p>
+                  <Tr
+                    text={
+                      'Name a sighting to teach Marvi, or reject it without storing an identity.'
+                    }
+                  />
+                </p>
                 <div className="face-review-toolbar">
                   <span>
                     {safeReviewPage + 1} / {reviewPageCount}
@@ -1940,16 +2001,16 @@ function RoomPanel({
                     disabled={enrolling || safeReviewPage === 0}
                     onClick={() => setReviewPage((page) => Math.max(0, page - 1))}
                   >
-                    Previous
+                    <Tr text={'Previous'} />
                   </ControlButton>
                   <ControlButton
                     disabled={enrolling || safeReviewPage >= reviewPageCount - 1}
                     onClick={() => setReviewPage((page) => Math.min(reviewPageCount - 1, page + 1))}
                   >
-                    Next
+                    <Tr text={'Next'} />
                   </ControlButton>
                   <ControlButton destructive disabled={enrolling} onClick={() => void rejectAll()}>
-                    Reject all
+                    <Tr text={'Reject all'} />
                   </ControlButton>
                 </div>
               </div>
@@ -1968,7 +2029,7 @@ function RoomPanel({
                     type="button"
                   >
                     {sighting.image ? (
-                      <img alt="An unrecognised face awaiting review" src={sighting.image} />
+                      <img alt={t('An unrecognised face awaiting review')} src={sighting.image} />
                     ) : (
                       <Users aria-hidden="true" />
                     )}
@@ -2005,7 +2066,7 @@ function RoomPanel({
                             [sighting.id]: event.target.value
                           }))
                         }
-                        placeholder="Person name"
+                        placeholder={t('Person name')}
                         value={visitorNames[sighting.id] ?? sighting.nearest?.name ?? ''}
                       />
                       <label className="face-review-owner">
@@ -2022,7 +2083,7 @@ function RoomPanel({
                           }
                           type="checkbox"
                         />
-                        Set as owner
+                        <Tr text={'Set as owner'} after />
                       </label>
                     </div>
                     <div className="face-review-actions">
@@ -2034,14 +2095,14 @@ function RoomPanel({
                         }
                         onClick={() => void review(sighting.id, 'approve')}
                       >
-                        Save identity
+                        <Tr text={'Save identity'} />
                       </ControlButton>
                       <ControlButton
                         destructive
                         disabled={enrolling}
                         onClick={() => void review(sighting.id, 'reject')}
                       >
-                        Reject
+                        <Tr text={'Reject'} />
                       </ControlButton>
                     </div>
                   </div>
@@ -2063,7 +2124,9 @@ function RoomPanel({
                 <div className="face-review-lightbox-frame">
                   <header>
                     <div>
-                      <span>Face review</span>
+                      <span>
+                        <Tr text={'Face review'} />
+                      </span>
                       <strong>
                         {expandedSighting.nearest?.name
                           ? `Looks like ${expandedSighting.nearest.name}`
@@ -2071,7 +2134,7 @@ function RoomPanel({
                       </strong>
                     </div>
                     <button
-                      aria-label="Close full face preview"
+                      aria-label={t('Close full face preview')}
                       className="face-review-lightbox-close"
                       onClick={() => setExpandedSighting(null)}
                       type="button"
@@ -2102,30 +2165,34 @@ function RoomPanel({
                         ? `${expandedImageSize.width} × ${expandedImageSize.height} source`
                         : 'Reading source size…'}
                     </span>
-                    <span>Esc or click outside to close</span>
+                    <span>
+                      <Tr text={'Esc or click outside to close'} />
+                    </span>
                   </footer>
                 </div>
               </dialog>
             ) : null}
 
             {pressed ? (
-              <ControlRow description={pressed} icon={Clock3} title="Last camera action" />
+              <ControlRow description={pressed} icon={Clock3} title={t('Last camera action')} />
             ) : null}
             {library && !library.ok ? (
               <ControlEmpty
                 description={library.detail ?? 'The room is not answering.'}
                 icon={ShieldAlert}
-                title="Cannot read the face library"
+                title={t('Cannot read the face library')}
               />
             ) : null}
           </ControlSection>
 
-          <ControlSection icon={History} title="Recent observations">
+          <ControlSection icon={History} title={t('Recent observations')}>
             {visionEvents.length === 0 ? (
               <ControlEmpty
-                description="Camera, presence, face, sleep, and gesture changes will appear here."
+                description={t(
+                  'Camera, presence, face, sleep, and gesture changes will appear here.'
+                )}
                 icon={Clock3}
-                title="No vision observations yet"
+                title={t('No vision observations yet')}
               />
             ) : (
               visionEvents.map((event) => (
@@ -2198,9 +2265,9 @@ function MemorySettingsSection({
   // could find anything in.
   const whereItLives = (
     <ControlSection
-      description="Which store holds what Marvi remembers. Only one is ever active."
+      description={t('Which store holds what Marvi remembers. Only one is ever active.')}
       icon={Database}
-      title="Where memory lives"
+      title={t('Where memory lives')}
     >
       <ControlRow
         action={
@@ -2212,11 +2279,13 @@ function MemorySettingsSection({
             ]}
             value={provider}
             onChange={(next) => apply({ provider: next })}
-            placeholder="Marvi local"
+            placeholder={t('Marvi local')}
           />
         }
-        description="Only one provider is active. Switching changes where new turns and recall go; it does not merge stores."
-        title="Memory provider"
+        description={t(
+          'Only one provider is active. Switching changes where new turns and recall go; it does not merge stores.'
+        )}
+        title={t('Memory provider')}
       />
       {provider !== 'local' ? (
         <ControlRow
@@ -2242,7 +2311,7 @@ function MemorySettingsSection({
             }}
           >
             <input
-              aria-label="Memory provider endpoint"
+              aria-label={t('Memory provider endpoint')}
               onChange={(event) => setProviderUrl(event.target.value)}
               placeholder={
                 provider === 'honcho' ? 'https://api.honcho.dev' : 'managed, local, or URL'
@@ -2250,28 +2319,28 @@ function MemorySettingsSection({
               value={providerUrl}
             />
             <input
-              aria-label="Memory provider API key"
+              aria-label={t('Memory provider API key')}
               onChange={(event) => setProviderKey(event.target.value)}
               placeholder={policy?.providerKeySet ? 'key saved' : 'API key'}
               type="password"
               value={providerKey}
             />
             <input
-              aria-label="Memory user ID"
+              aria-label={t('Memory user ID')}
               onChange={(event) => setUserId(event.target.value)}
-              placeholder="marvi-user"
+              placeholder={t('marvi-user')}
               value={userId}
             />
             {provider === 'honcho' ? (
               <input
-                aria-label="Honcho workspace"
+                aria-label={t('Honcho workspace')}
                 onChange={(event) => setWorkspace(event.target.value)}
-                placeholder="marvi-os"
+                placeholder={t('marvi-os')}
                 value={workspace}
               />
             ) : null}
             <button className="ghost-button" type="submit">
-              Save
+              <Tr text={'Save'} />
             </button>
           </form>
         </ControlRow>
@@ -2281,9 +2350,9 @@ function MemorySettingsSection({
 
   const howRecallWorks = (
     <ControlSection
-      description="What gets kept from a conversation, and how it is found again."
+      description={t('What gets kept from a conversation, and how it is found again.')}
       icon={Brain}
-      title="How recall works"
+      title={t('How recall works')}
     >
       <ControlRow
         description={
@@ -2293,7 +2362,7 @@ function MemorySettingsSection({
               ? 'A model reads each finished exchange and decides what to keep. Chosen in Settings › Models.'
               : 'No model is set for this, so the main one does it. Choose a cheaper one in Settings › Models › Memory.'
         }
-        title="Deciding what to remember"
+        title={t('Deciding what to remember')}
       />
       {/* Measured against the real store: the answer was inside the top five
           for every question it could answer, but ranked first for only half of
@@ -2317,7 +2386,7 @@ function MemorySettingsSection({
             ]}
             value={policy?.reader === false ? 'off' : 'on'}
             onChange={(next) => apply({ reader: next === 'on' })}
-            placeholder="Answer"
+            placeholder={t('Answer')}
           />
         }
         description={
@@ -2325,7 +2394,7 @@ function MemorySettingsSection({
             ? 'The nearest memories go straight to Marvi, who has to work out which of them bears on the question while also holding a conversation.'
             : 'Asked while you are still speaking, so it costs the turn nothing. It is the only part of memory that can answer “I do not know” instead of using the closest thing it found.'
         }
-        title="Reading the memories"
+        title={t('Reading the memories')}
       />
       {provider === 'local' ? (
         <ControlRow
@@ -2346,7 +2415,7 @@ function MemorySettingsSection({
               ]}
               value={source}
               onChange={(next) => apply({ source: next })}
-              placeholder="Words only"
+              placeholder={t('Words only')}
             />
           }
           description={
@@ -2356,7 +2425,7 @@ function MemorySettingsSection({
                 ? 'Runs on the processor, beside speech recognition. The graphics card stays free for the voice.'
                 : 'Your memories are sent to whichever endpoint you name, on every recall.'
           }
-          title="Searching by meaning"
+          title={t('Searching by meaning')}
         />
       ) : null}
       {provider === 'local' && source !== 'off' ? (
@@ -2366,7 +2435,7 @@ function MemorySettingsSection({
               ? `Downloaded on first use. Default: ${policy?.defaultLocalModel ?? ''}`
               : 'The endpoint and model. Any server that answers POST /v1/embeddings.'
           }
-          title="Model"
+          title={t('Model')}
         >
           <form
             className="workspace-add"
@@ -2380,7 +2449,7 @@ function MemorySettingsSection({
             }}
           >
             <input
-              aria-label="Embedding model"
+              aria-label={t('Embedding model')}
               onChange={(event) => setModel(event.target.value)}
               placeholder={policy?.defaultLocalModel ?? 'model'}
               value={model}
@@ -2388,13 +2457,13 @@ function MemorySettingsSection({
             {source === 'provider' ? (
               <>
                 <input
-                  aria-label="Endpoint"
+                  aria-label={t('Endpoint')}
                   onChange={(event) => setUrl(event.target.value)}
-                  placeholder="http://127.0.0.1:11434/v1"
+                  placeholder={t('http://127.0.0.1:11434/v1')}
                   value={url}
                 />
                 <input
-                  aria-label="API key"
+                  aria-label={t('API key')}
                   onChange={(event) => setKey(event.target.value)}
                   placeholder={policy?.keySet ? 'key saved' : 'key, if needed'}
                   type="password"
@@ -2403,7 +2472,7 @@ function MemorySettingsSection({
               </>
             ) : null}
             <button className="ghost-button" type="submit">
-              Save
+              <Tr text={'Save'} />
             </button>
           </form>
         </ControlRow>
@@ -2455,16 +2524,24 @@ function MemoryPanel(): React.JSX.Element {
 
   return (
     <ControlPage
-      description="Marvi Cortex turns observations into durable context, then keeps every source and relationship inspectable."
-      title="Marvi Cortex Memory"
+      description={t(
+        'Marvi Cortex turns observations into durable context, then keeps every source and relationship inspectable.'
+      )}
+      title={t('Marvi Cortex Memory')}
     >
       <div className="arc-memory-workspace">
         <div className="arc-memory-toolbar">
           <div className="arc-memory-toolbar-copy">
-            <strong>MEMORY GRAPH</strong>
-            <small>Local-only graph projection · provenance remains attached to every node</small>
+            <strong>
+              <Tr text={'MEMORY GRAPH'} />
+            </strong>
+            <small>
+              <Tr
+                text={'Local-only graph projection · provenance remains attached to every node'}
+              />
+            </small>
           </div>
-          <div className="arc-memory-modes" aria-label="Memory graph mode">
+          <div className="arc-memory-modes" aria-label={t('Memory graph mode')}>
             <button
               aria-pressed={mode === 'tree'}
               onClick={() => {
@@ -2473,7 +2550,7 @@ function MemoryPanel(): React.JSX.Element {
               }}
               type="button"
             >
-              TREE
+              <Tr text={'TREE'} />
             </button>
             <button
               aria-pressed={mode === 'contacts'}
@@ -2483,7 +2560,7 @@ function MemoryPanel(): React.JSX.Element {
               }}
               type="button"
             >
-              CONNECTIONS
+              <Tr text={'CONNECTIONS'} />
             </button>
           </div>
         </div>
@@ -2504,18 +2581,20 @@ function MemoryPanel(): React.JSX.Element {
           confirmClear ? (
             <div className="control-actions">
               <ControlButton destructive onClick={() => void clearAll()}>
-                <Trash2 aria-hidden="true" /> Delete everything
+                <Trash2 aria-hidden="true" /> <Tr text={'Delete everything'} before after />
               </ControlButton>
-              <ControlButton onClick={() => setConfirmClear(false)}>Cancel</ControlButton>
+              <ControlButton onClick={() => setConfirmClear(false)}>
+                <Tr text={'Cancel'} />
+              </ControlButton>
             </div>
           ) : (
             <ControlButton destructive onClick={() => setConfirmClear(true)}>
-              <Trash2 aria-hidden="true" /> Forget everything
+              <Trash2 aria-hidden="true" /> <Tr text={'Forget everything'} before after />
             </ControlButton>
           )
         }
         icon={Database}
-        title="Local store"
+        title={t('Local store')}
       >
         {/* Three counters said how much was in there and nothing about what.
             See `MemoryHealth`: the same store read by source is where 55
@@ -2558,10 +2637,12 @@ function MemorySettingsPanel(): React.JSX.Element {
   return (
     <ControlPage
       className="settings-page"
-      description="What Marvi keeps from a conversation, how she finds it again, and what she already knows."
-      title="Memory"
+      description={t(
+        'What Marvi keeps from a conversation, how she finds it again, and what she already knows.'
+      )}
+      title={t('Memory')}
     >
-      <div className="arc-memory-modes" aria-label="Memory settings">
+      <div className="arc-memory-modes" aria-label={t('Memory settings')}>
         {MEMORY_TABS.map((name) => (
           <button aria-pressed={tab === name} key={name} onClick={() => setTab(name)} type="button">
             {name.toUpperCase()}
@@ -2573,10 +2654,10 @@ function MemorySettingsPanel(): React.JSX.Element {
       {tab === 'Recall' ? <MemorySettingsSection which="recall" /> : null}
       {tab === 'Remembered' ? (
         <>
-          <ControlSection icon={Database} title="Local store">
+          <ControlSection icon={Database} title={t('Local store')}>
             <ControlRow
               action={<span className="control-value">{page.total}</span>}
-              title="Entries"
+              title={t('Entries')}
             />
             <ControlRow
               action={
@@ -2584,8 +2665,8 @@ function MemorySettingsPanel(): React.JSX.Element {
                   {page.summary.graph?.entities ?? 0} / {page.summary.graph?.relations ?? 0}
                 </span>
               }
-              description="Entities / relationships. Filled by dreaming, not by hand."
-              title="Knowledge graph"
+              description={t('Entities / relationships. Filled by dreaming, not by hand.')}
+              title={t('Knowledge graph')}
             />
           </ControlSection>
           <MemoryList entries={page.entries} />
@@ -2696,9 +2777,11 @@ function MemoryImportSection(): React.JSX.Element {
   return (
     <>
       <ControlSection
-        description="Marvi rewrites each memory to fit rather than pasting it in, leaves out what she already knows, and refuses anything that looks like a credential."
+        description={t(
+          'Marvi rewrites each memory to fit rather than pasting it in, leaves out what she already knows, and refuses anything that looks like a credential.'
+        )}
         icon={Database}
-        title="Import from another assistant"
+        title={t('Import from another assistant')}
       >
         <Picker
           options={IMPORT_SOURCES.map((source) => ({
@@ -2713,7 +2796,7 @@ function MemoryImportSection(): React.JSX.Element {
             setResult(null)
             setRequest(null)
           }}
-          placeholder="Where from"
+          placeholder={t('Where from')}
         />
 
         {kind === 'chat' && sources ? (
@@ -2730,8 +2813,10 @@ function MemoryImportSection(): React.JSX.Element {
                   {copied ? 'Copied' : 'Copy the prompt'}
                 </ControlButton>
               }
-              description="Paste it into ChatGPT, Claude, Gemini or Grok, save the JSON it replies with, then choose that file below."
-              title="Ask it to write down everything it knows"
+              description={t(
+                'Paste it into ChatGPT, Claude, Gemini or Grok, save the JSON it replies with, then choose that file below.'
+              )}
+              title={t('Ask it to write down everything it knows')}
             />
             <pre className="service-output skill-body">{sources.packPrompt}</pre>
           </>
@@ -2743,7 +2828,7 @@ function MemoryImportSection(): React.JSX.Element {
               options={workspaces.map((name) => ({ value: name, label: name, detail: '' }))}
               value={scope}
               onChange={setScope}
-              placeholder="Workspace"
+              placeholder={t('Workspace')}
             />
           ) : (
             <p className="notice">
@@ -2756,7 +2841,9 @@ function MemoryImportSection(): React.JSX.Element {
 
         {kind === 'mem0' && !reachable ? (
           <p className="notice">
-            No Mem0 key found. Set MEM0_API_KEY, or choose Mem0 as your memory provider.
+            <Tr
+              text={'No Mem0 key found. Set MEM0_API_KEY, or choose Mem0 as your memory provider.'}
+            />
           </p>
         ) : null}
 
@@ -2777,11 +2864,11 @@ function MemoryImportSection(): React.JSX.Element {
       </ControlSection>
 
       {found ? (
-        <ControlSection icon={Database} title="Before importing">
+        <ControlSection icon={Database} title={t('Before importing')}>
           <ControlRow
             action={<span className="control-value">{found.found}</span>}
             description={found.files.map((file) => `${file.name} (${file.found})`).join(' · ')}
-            title="Memories found"
+            title={t('Memories found')}
           />
           {found.refused.length > 0 ? (
             <ControlRow
@@ -2791,7 +2878,7 @@ function MemoryImportSection(): React.JSX.Element {
                 .map((row) => row.quote.slice(0, 56))
                 .join(' · ')}`}
               icon={ShieldAlert}
-              title="Refused as credentials"
+              title={t('Refused as credentials')}
             />
           ) : null}
           {found.sample.length > 0 ? (
@@ -2807,20 +2894,23 @@ function MemoryImportSection(): React.JSX.Element {
                 setRequest(null)
               }}
             >
-              Cancel
+              <Tr text={'Cancel'} />
             </ControlButton>
           </div>
           {busy === 'importing' ? (
             <p className="notice">
-              A model is rewriting each one to fit Marvi, then dreaming over the result to draw the
-              relations between them. Hundreds of memories take a few minutes.
+              <Tr
+                text={
+                  'A model is rewriting each one to fit Marvi, then dreaming over the result to draw the relations between them. Hundreds of memories take a few minutes.'
+                }
+              />
             </p>
           ) : null}
         </ControlSection>
       ) : null}
 
       {result ? (
-        <ControlSection icon={result.imported > 0 ? Database : ShieldAlert} title="Imported">
+        <ControlSection icon={result.imported > 0 ? Database : ShieldAlert} title={t('Imported')}>
           <ControlRow
             description={
               result.imported > 0
@@ -2838,9 +2928,9 @@ function MemoryImportSection(): React.JSX.Element {
           {result.refused && result.refused.length > 0 ? (
             <ControlRow
               action={<span className="control-value">{result.refused.length}</span>}
-              description="Left out because they carried a password, key or identity number."
+              description={t('Left out because they carried a password, key or identity number.')}
               icon={ShieldAlert}
-              title="Refused"
+              title={t('Refused')}
             />
           ) : null}
         </ControlSection>
@@ -2892,25 +2982,31 @@ function MemoryList({ entries }: { entries: MemoryEntry[] }): React.JSX.Element 
         ) : null
       }
       icon={History}
-      title="Stored memories"
+      title={t('Stored memories')}
     >
       {entries.length > 8 ? (
         <input
           className="skill-search"
           type="text"
-          placeholder="Search what Marvi remembers"
+          placeholder={t('Search what Marvi remembers')}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
       ) : null}
       {entries.length === 0 ? (
         <ControlEmpty
-          description="Useful preferences and facts will appear after Marvi has something worth retaining."
+          description={t(
+            'Useful preferences and facts will appear after Marvi has something worth retaining.'
+          )}
           icon={Database}
-          title="Nothing remembered yet"
+          title={t('Nothing remembered yet')}
         />
       ) : shown.length === 0 ? (
-        <ControlEmpty description="Nothing here matches that." icon={Database} title="No match" />
+        <ControlEmpty
+          description={t('Nothing here matches that.')}
+          icon={Database}
+          title={t('No match')}
+        />
       ) : (
         shown.slice(0, 200).map((entry) => (
           <ControlRow
@@ -3048,8 +3144,9 @@ function ProviderCard({
       </span>
       {offline ? (
         <small className="provider-cooldown">
-          Nothing is listening on {provider.baseUrl} — start it, or point{' '}
-          {provider.env.url || 'the URL'} somewhere else.
+          <Tr text={'Nothing is listening on'} after />
+          {provider.baseUrl} <Tr text={'— start it, or point'} before />{' '}
+          {provider.env.url || 'the URL'} <Tr text={'somewhere else.'} before after />
         </small>
       ) : null}
       {provider.accessPath === 'local' && !provider.configured ? (
@@ -3065,7 +3162,8 @@ function ProviderCard({
 
       {provider.limits.windows.length > 0 ? (
         <small>
-          Limits {provider.limits.windows.map(([win, cap]) => `${cap} / ${win}`).join(', ')}
+          <Tr text={'Limits'} after />
+          {provider.limits.windows.map(([win, cap]) => `${cap} / ${win}`).join(', ')}
           {provider.limits.readable ? '' : ' (not published over the API)'}
         </small>
       ) : null}
@@ -3090,13 +3188,14 @@ function ProviderCard({
           {oauth ? (
             <>
               <small>
-                Marvi never sees your password. Sign-in happens on the provider&apos;s own page in
-                your browser; Marvi only receives the result
+                <Tr text="Marvi never sees your password. Sign-in happens on the provider's own page in your browser; Marvi only receives the result" />
                 {oauth.encrypted_at_rest ? ', encrypted to this Windows account' : ''}.
               </small>
               {oauth.client_id_set ? null : (
                 <small className="provider-cooldown">
-                  Set {oauth.client_id_env} first — Marvi does not ship vendor client IDs.
+                  <Tr text={'Set'} after />
+                  {oauth.client_id_env}{' '}
+                  <Tr text={'first — Marvi does not ship vendor client IDs.'} before after />
                 </small>
               )}
               <div className="provider-actions">
@@ -3121,7 +3220,7 @@ function ProviderCard({
                     disabled={busy}
                     onClick={() => void disconnect()}
                   >
-                    Disconnect
+                    <Tr text={'Disconnect'} />
                   </button>
                 ) : null}
               </div>
@@ -3137,12 +3236,14 @@ function ProviderCard({
               onChange={(event) => setSecret(event.target.value)}
             />
           ) : (
-            <small>No credential needed. Start the server and Marvi will find it.</small>
+            <small>
+              <Tr text={'No credential needed. Start the server and Marvi will find it.'} />
+            </small>
           )}
 
           <input
             type="text"
-            placeholder="Model"
+            placeholder={t('Model')}
             value={model}
             onChange={(event) => setModel(event.target.value)}
           />
@@ -3168,7 +3269,7 @@ function ProviderCard({
                 disabled={busy}
                 onClick={() => void save({ [keyEnv]: '' })}
               >
-                Disconnect
+                <Tr text={'Disconnect'} />
               </button>
             ) : null}
           </div>
@@ -3220,14 +3321,14 @@ function ProvidersPanel(): React.JSX.Element {
 
   return (
     <ControlPage
-      description="Connect a model service and choose where each request runs."
-      title="Providers"
+      description={t('Connect a model service and choose where each request runs.')}
+      title={t('Providers')}
     >
       {!page && !error ? (
         <ProcessingCard
           compact
           detail="Checking configured endpoints and connection state."
-          title="Loading providers"
+          title={t('Loading providers')}
         />
       ) : null}
       {error ? <p className="notice notice-warn">{error}</p> : null}
@@ -3326,8 +3427,10 @@ function IdentityPanel(): React.JSX.Element {
 
   return (
     <ControlPage
-      description="Compose Marvi's identity and your standing preferences from SOUL.md and USER.md."
-      title="Marvi's DMN"
+      description={t(
+        "Compose Marvi's identity and your standing preferences from SOUL.md and USER.md."
+      )}
+      title={t("Marvi's DMN")}
     >
       <ControlSection
         action={
@@ -3337,23 +3440,27 @@ function IdentityPanel(): React.JSX.Element {
           </ControlButton>
         }
         icon={Sparkles}
-        title="DMN identity files"
+        title={t('DMN identity files')}
       >
         {identity ? (
           <ControlRow
             action={
               <span className="control-value">
-                {identity.tokens} / {identity.budget} tokens
+                {identity.tokens} / {identity.budget} <Tr text={'tokens'} before after />
                 {identity.truncated ? ' · Truncated' : ''}
               </span>
             }
             description={identity.directory}
-            title="Prompt budget"
+            title={t('Prompt budget')}
           />
         ) : null}
         <label className="control-editor">
-          <span>Soul</span>
-          <small>Voice, temperament, and refusals</small>
+          <span>
+            <Tr text={'Soul'} />
+          </span>
+          <small>
+            <Tr text={'Voice, temperament, and refusals'} />
+          </small>
           <textarea
             rows={10}
             value={soul}
@@ -3364,8 +3471,12 @@ function IdentityPanel(): React.JSX.Element {
           />
         </label>
         <label className="control-editor">
-          <span>User</span>
-          <small>Name, hours, and standing preferences</small>
+          <span>
+            <Tr text={'User'} />
+          </span>
+          <small>
+            <Tr text={'Name, hours, and standing preferences'} />
+          </small>
           <textarea
             rows={10}
             value={user}
@@ -3465,7 +3576,7 @@ function ServiceHealth({ compact = false }: { compact?: boolean }): React.JSX.El
                 type="button"
                 onClick={() => void window.marvi?.retryService(service.name)}
               >
-                RETRY NOW
+                <Tr text={'RETRY NOW'} />
               </button>
             ) : null}
           </div>
@@ -3541,13 +3652,17 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
         rig={
           <dl className="voice-hud-rig">
             <div>
-              <dt>LLM</dt>
+              <dt>
+                <Tr text={'LLM'} />
+              </dt>
               <dd>
                 <VoiceModelPicker current={runtime.model?.llm ?? ''} />
               </dd>
             </div>
             <div>
-              <dt>SPEECH IN</dt>
+              <dt>
+                <Tr text={'SPEECH IN'} />
+              </dt>
               <dd>
                 <RecogniserPicker compact />
               </dd>
@@ -3556,13 +3671,17 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
               {/* The voice, chosen here rather than three clicks away in Settings.
               It is the one thing about speech output anybody changes, and the
               page where you hear it is the page to change it on. */}
-              <dt>SPEECH OUT</dt>
+              <dt>
+                <Tr text={'SPEECH OUT'} />
+              </dt>
               <dd>
                 <VoicePicker compact />
               </dd>
             </div>
             <div>
-              <dt>MIC</dt>
+              <dt>
+                <Tr text={'MIC'} />
+              </dt>
               <dd>{deviceError ? 'unavailable' : microphoneLabel(devices)}</dd>
             </div>
           </dl>
@@ -3576,7 +3695,7 @@ function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element 
       <CalendarCard />
 
       <MessageTiming
-        aria-label="Voice session metrics"
+        aria-label={t('Voice session metrics')}
         className="voice-session-timing"
         stats={sessionTimingStats(sessionMetrics)}
         streaming={speaking || listening}
@@ -3665,7 +3784,11 @@ function WakeIndicator(): React.JSX.Element | null {
   if (!wake) return null
 
   if (!wake.modelPresent) {
-    return <p className="voice-hud-blocker">Wake word model missing — press Join instead</p>
+    return (
+      <p className="voice-hud-blocker">
+        <Tr text={'Wake word model missing — press Join instead'} />
+      </p>
+    )
   }
   if (!wake.listener.autostart) return null
 
@@ -3706,7 +3829,12 @@ function WakeSettings(): React.JSX.Element {
   const [pending, setPending] = useState<boolean | null>(null)
   const [restartPending, setRestartPending] = useState<boolean | null>(null)
 
-  if (!wake) return <span className="construction">UNAVAILABLE</span>
+  if (!wake)
+    return (
+      <span className="construction">
+        <Tr text={'UNAVAILABLE'} />
+      </span>
+    )
 
   const set = (values: Record<string, string>): void => {
     void window.marvi?.setProviderSettings(values)
@@ -3775,7 +3903,7 @@ function WakeSettings(): React.JSX.Element {
                 : 'A stopped listener stays stopped. Use Start it or turn Wake Word off and on when you want it back.'
             }
             icon={RefreshCw}
-            title="Restart after a crash"
+            title={t('Restart after a crash')}
           />
           {!wake.listener.running && wake.listener.everRan ? (
             <ControlRow
@@ -3786,22 +3914,21 @@ function WakeSettings(): React.JSX.Element {
                   onClick={() => void toggle(true)}
                   type="button"
                 >
-                  START IT
+                  <Tr text={'START IT'} />
                 </button>
               }
               description={`It last reported ${sinceWhen(
                 wake.listener.silentFor
               )} ago and has not since. Starting it re-registers the listener and launches it now, rather than waiting for the next login.`}
               icon={ShieldAlert}
-              title="The listener has stopped"
+              title={t('The listener has stopped')}
             />
           ) : null}
           <p className="notice">
             {wake.device
               ? `Listening on ${wake.device}. `
               : 'Listening on the system default microphone. '}
-            Right-click Marvi&rsquo;s tray icon to change it &mdash; the listener is the thing that
-            opens the microphone, so it is the only one that knows which ones it can open.
+            <Tr text="Right-click Marvi’s tray icon to change it — the listener opens the microphone and knows which devices it can use." />
           </p>
           <p className="notice">
             {!wake.modelPresent
@@ -3840,7 +3967,9 @@ function RecogniserPicker({ compact = false }: { compact?: boolean } = {}): Reac
 
   if (page && page.engines.length === 0) {
     return (
-      <span className="construction">RECOGNISERS UNAVAILABLE — THE GATEWAY DID NOT ANSWER.</span>
+      <span className="construction">
+        <Tr text={'RECOGNISERS UNAVAILABLE — THE GATEWAY DID NOT ANSWER.'} />
+      </span>
     )
   }
 
@@ -3858,12 +3987,12 @@ function RecogniserPicker({ compact = false }: { compact?: boolean } = {}): Reac
         }))}
         value={page?.selected ?? ''}
         onChange={(next) => void chooseRecogniser(next)}
-        placeholder="Parakeet TDT 0.6B"
+        placeholder={t('Parakeet TDT 0.6B')}
         searchPlaceholder="Search STT engines…"
         empty="No STT engines available."
       />
       {compact ? null : (
-        <UiTooltip label="Ask the Gateway which STT engines are installed, again">
+        <UiTooltip label={t('Ask the Gateway which STT engines are installed, again')}>
           <ControlButton
             className="voice-choice-refresh"
             disabled={refreshing}
@@ -3879,8 +4008,11 @@ function RecogniserPicker({ compact = false }: { compact?: boolean } = {}): Reac
       )}
       {page?.missing ? (
         <span className="construction">
-          THE SELECTED RECOGNISER IS NOT INSTALLED. MARVI FALLS BACK TO THE DEFAULT — INSTALL IT IN
-          SETUP OR PICK AN AVAILABLE ENGINE.
+          <Tr
+            text={
+              'THE SELECTED RECOGNISER IS NOT INSTALLED. MARVI FALLS BACK TO THE DEFAULT — INSTALL IT IN SETUP OR PICK AN AVAILABLE ENGINE.'
+            }
+          />
         </span>
       ) : null}
     </div>
@@ -3931,7 +4063,11 @@ function VoicePicker({ compact = false }: { compact?: boolean } = {}): React.JSX
   // finished". It cannot mean that any more -- the voices are part of an 82M
   // checkpoint -- so an empty list now means the Gateway did not answer.
   if (page && page.voices.length === 0) {
-    return <span className="construction">VOICES UNAVAILABLE — THE GATEWAY DID NOT ANSWER.</span>
+    return (
+      <span className="construction">
+        <Tr text={'VOICES UNAVAILABLE — THE GATEWAY DID NOT ANSWER.'} />
+      </span>
+    )
   }
 
   return (
@@ -3965,14 +4101,17 @@ function VoicePicker({ compact = false }: { compact?: boolean } = {}): React.JSX
             })
             .then(() => reload())
         }}
-        placeholder="Kokoro 82M"
+        placeholder={t('Kokoro 82M')}
         searchPlaceholder="Search TTS engines…"
         empty="No TTS engines available."
       />
       {page?.engineMissing ? (
         <span className="construction">
-          THE SELECTED TTS ENGINE IS NOT INSTALLED. MARVI FALLS BACK TO KOKORO — INSTALL IT IN SETUP
-          OR PICK AN AVAILABLE ENGINE.
+          <Tr
+            text={
+              'THE SELECTED TTS ENGINE IS NOT INSTALLED. MARVI FALLS BACK TO KOKORO — INSTALL IT IN SETUP OR PICK AN AVAILABLE ENGINE.'
+            }
+          />
         </span>
       ) : null}
       <Picker
@@ -3993,12 +4132,12 @@ function VoicePicker({ compact = false }: { compact?: boolean } = {}): React.JSX
           setPage({ ...page, selected: next, missing: false })
           void window.marvi?.setProviderSettings({ [page.setting]: next })
         }}
-        placeholder="Model default"
+        placeholder={t('Model default')}
         searchPlaceholder="Search voices…"
         empty="No voices available."
       />
       {compact ? null : (
-        <UiTooltip label="Ask the Gateway which TTS engines and voices are installed, again">
+        <UiTooltip label={t('Ask the Gateway which TTS engines and voices are installed, again')}>
           <ControlButton
             className="voice-choice-refresh"
             disabled={refreshing}
@@ -4126,7 +4265,9 @@ function Subtitles(): React.JSX.Element | null {
     <div aria-live="polite" className="voice-subtitles">
       {heard ? (
         <p className={`voice-line is-you${heard.final ? '' : ' is-live'}`} key={heard.id}>
-          <span className="voice-who">YOU</span>
+          <span className="voice-who">
+            <Tr text={'YOU'} />
+          </span>
           <span className="voice-words">
             <StreamingWords text={subtitleTail(heard.text)} live={!heard.final} />
           </span>
@@ -4134,7 +4275,9 @@ function Subtitles(): React.JSX.Element | null {
       ) : null}
       {spoken ? (
         <p className={`voice-line is-marvi${spoken.final ? '' : ' is-live'}`} key={spoken.id}>
-          <span className="voice-who">MARVI</span>
+          <span className="voice-who">
+            <Tr text={'MARVI'} />
+          </span>
           <span className="voice-words">
             <StreamingWords text={subtitleTail(spoken.text)} live={!spoken.final} />
           </span>
@@ -4191,7 +4334,7 @@ function QuestionCard({ question }: { question: PendingQuestion }): React.JSX.El
   const live = link === 'live'
 
   return (
-    <div className="voice-question" role="group" aria-label="Marvi asked">
+    <div className="voice-question" role="group" aria-label={t('Marvi asked')}>
       <p className="voice-question-text">{question.text}</p>
       {question.choices.length ? (
         <div className="voice-question-choices">
@@ -4218,14 +4361,14 @@ function QuestionCard({ question }: { question: PendingQuestion }): React.JSX.El
         }}
       >
         <input
-          aria-label="Type your answer"
+          aria-label={t('Type your answer')}
           disabled={!live || sending}
           onChange={(event) => setTyped(event.target.value)}
           placeholder={question.choices.length ? 'Or type an answer…' : 'Type your answer…'}
           value={typed}
         />
         <button className="ghost-button" disabled={!live || sending || !typed.trim()} type="submit">
-          Send
+          <Tr text={'Send'} />
         </button>
       </form>
       <p className="voice-question-note">
@@ -4309,14 +4452,14 @@ function SecretCard({ request }: { request: PendingSecret }): React.JSX.Element 
           {shown ? 'Hide' : 'Show'}
         </button>
         <button className="ghost-button" disabled={saving || !value} type="submit">
-          Save
+          <Tr text={'Save'} />
         </button>
         <button className="ghost-button" disabled={saving} onClick={() => settle('')} type="button">
-          Not now
+          <Tr text={'Not now'} />
         </button>
       </form>
       <p className="voice-question-note">
-        Saved as a setting on this machine. Marvi is told the name, never the value.
+        <Tr text={'Saved as a setting on this machine. Marvi is told the name, never the value.'} />
       </p>
     </div>
   )
@@ -4389,18 +4532,21 @@ function PluginsPanel(): React.JSX.Element {
   }
 
   return (
-    <ControlPage description="Long-running local services that extend Marvi." title="Plugins">
+    <ControlPage
+      description={t('Long-running local services that extend Marvi.')}
+      title={t('Plugins')}
+    >
       {error ? <p className="notice notice-warn">{error}</p> : null}
 
       {!page ? (
         <ProcessingCard
           compact
           detail="Reading declared plugins and their local state."
-          title="Loading plugins"
+          title={t('Loading plugins')}
         />
       ) : null}
 
-      <ControlSection icon={Box} title="Installed and available">
+      <ControlSection icon={Box} title={t('Installed and available')}>
         <div className="service-list">
           {(page?.plugins ?? []).map((plugin) => (
             <div className="service-row" key={plugin.name}>
@@ -4435,15 +4581,16 @@ function PluginsPanel(): React.JSX.Element {
               ) : null}
               {plugin.tools.length > 0 ? (
                 <small>
-                  {plugin.tools.length} tools: {plugin.tools.join(', ')}
+                  {plugin.tools.length} <Tr text={'tools:'} before after />
+                  {plugin.tools.join(', ')}
                 </small>
               ) : null}
 
               {confirming === plugin.name ? (
                 <div className="chat-confirm">
                   <p>
-                    {plugin.title} runs its own code inside Marvi and installs its dependencies into
-                    Marvi&apos;s environment. Only install plugins you trust.
+                    <bdi>{plugin.title}</bdi>{' '}
+                    <Tr text="runs its own code inside Marvi and installs its dependencies into Marvi's environment. Only install plugins you trust." />
                   </p>
                   <div className="provider-actions">
                     <button
@@ -4451,10 +4598,10 @@ function PluginsPanel(): React.JSX.Element {
                       type="button"
                       onClick={() => void act(plugin.name, 'install')}
                     >
-                      Install
+                      <Tr text={'Install'} />
                     </button>
                     <button className="phase" type="button" onClick={() => setConfirming('')}>
-                      Cancel
+                      <Tr text={'Cancel'} />
                     </button>
                   </div>
                 </div>
@@ -4468,7 +4615,7 @@ function PluginsPanel(): React.JSX.Element {
                         disabled={!!busy}
                         onClick={() => void act(plugin.name, 'update')}
                       >
-                        Update
+                        <Tr text={'Update'} />
                       </button>
                       <button
                         className="phase danger"
@@ -4476,7 +4623,7 @@ function PluginsPanel(): React.JSX.Element {
                         disabled={!!busy}
                         onClick={() => void act(plugin.name, 'remove')}
                       >
-                        Remove
+                        <Tr text={'Remove'} />
                       </button>
                     </>
                   ) : (
@@ -4486,7 +4633,7 @@ function PluginsPanel(): React.JSX.Element {
                       disabled={!!busy}
                       onClick={() => setConfirming(plugin.name)}
                     >
-                      Install
+                      <Tr text={'Install'} />
                     </button>
                   )}
                 </div>
@@ -4497,21 +4644,27 @@ function PluginsPanel(): React.JSX.Element {
 
         {(page?.plugins ?? []).length === 0 ? (
           <ControlEmpty
-            description="Add a declaration to config/plugin-sources.json."
-            title="No plugins declared"
+            description={t('Add a declaration to config/plugin-sources.json.')}
+            title={t('No plugins declared')}
           />
         ) : null}
       </ControlSection>
-      <ControlSection icon={Wrench} title="Plugin storage">
+      <ControlSection icon={Wrench} title={t('Plugin storage')}>
         <button className="phase" type="button" onClick={() => void load()}>
-          Check again
+          <Tr text={'Check again'} />
         </button>
         {page ? (
           <>
-            <small>Checkouts · {page.install_root}</small>
+            <small>
+              <Tr text={'Checkouts ·'} after />
+              {page.install_root}
+            </small>
             {/* Named because removing a plugin keeps its data, and someone
               looking for their room history should not have to guess. */}
-            <small>Plugin data · {page.data_root}</small>
+            <small>
+              <Tr text={'Plugin data ·'} after />
+              {page.data_root}
+            </small>
           </>
         ) : null}
       </ControlSection>
@@ -4643,28 +4796,36 @@ function SkillsPanel(): React.JSX.Element {
   return (
     <ControlPage
       className="capabilities-page"
-      description="Instructions that teach Marvi how to complete specific work."
-      title="Skills"
+      description={t('Instructions that teach Marvi how to complete specific work.')}
+      title={t('Skills')}
     >
-      <div className="capability-overview" aria-label="Skills summary">
+      <div className="capability-overview" aria-label={t('Skills summary')}>
         <div>
-          <span>Installed</span>
+          <span>
+            <Tr text={'Installed'} />
+          </span>
           <strong>{installed?.skills.length ?? 0}</strong>
         </div>
         <div>
-          <span>Available here</span>
+          <span>
+            <Tr text={'Available here'} />
+          </span>
           <strong>{activeSkills}</strong>
         </div>
         <div>
-          <span>Kept active</span>
+          <span>
+            <Tr text={'Kept active'} />
+          </span>
           <strong>{pinnedSkills}</strong>
         </div>
         <div>
-          <span>Catalog</span>
+          <span>
+            <Tr text={'Catalog'} />
+          </span>
           <strong>{store.length}</strong>
         </div>
       </div>
-      <div className="capability-store-tabs" role="tablist" aria-label="Skill stores">
+      <div className="capability-store-tabs" role="tablist" aria-label={t('Skill stores')}>
         <button
           aria-selected={skillStoreTab === 'installed'}
           className="capability-store-tab"
@@ -4678,8 +4839,12 @@ function SkillsPanel(): React.JSX.Element {
         >
           <BookOpen aria-hidden="true" size={14} />
           <span>
-            <strong>Installed</strong>
-            <small>{installed?.skills.length ?? 0} local</small>
+            <strong>
+              <Tr text={'Installed'} />
+            </strong>
+            <small>
+              {installed?.skills.length ?? 0} <Tr text={'local'} before />
+            </small>
           </span>
         </button>
         {storeSources.map((source, index) => (
@@ -4708,7 +4873,7 @@ function SkillsPanel(): React.JSX.Element {
       </div>
       <div className="capability-toolbar capability-toolbar-wide">
         <input
-          aria-label="Search skills"
+          aria-label={t('Search skills')}
           className="capability-search"
           type="search"
           placeholder={
@@ -4727,7 +4892,7 @@ function SkillsPanel(): React.JSX.Element {
         </span>
       </div>
       {proposal ? (
-        <ControlSection icon={Wrench} title="Learned from a conversation">
+        <ControlSection icon={Wrench} title={t('Learned from a conversation')}>
           <div className="skill-review">
             <div className="panel-label">{proposal.name}</div>
             <p>{proposal.description || proposal.why}</p>
@@ -4736,7 +4901,12 @@ function SkillsPanel(): React.JSX.Element {
                 ? 'This replaces the skill of that name, in full.'
                 : 'A new skill. Nothing is written until you accept it.'}
             </small>
-            {proposal.why ? <small>Because · {proposal.why}</small> : null}
+            {proposal.why ? (
+              <small>
+                <Tr text={'Because ·'} after />
+                {proposal.why}
+              </small>
+            ) : null}
             <pre className="service-output skill-body">{proposal.body}</pre>
             <div className="provider-actions">
               <button
@@ -4753,7 +4923,7 @@ function SkillsPanel(): React.JSX.Element {
                 disabled={busy === 'proposal'}
                 onClick={() => void settle(false)}
               >
-                Discard
+                <Tr text={'Discard'} />
               </button>
             </div>
           </div>
@@ -4761,10 +4931,14 @@ function SkillsPanel(): React.JSX.Element {
       ) : null}
       {skillStoreTab === 'installed' && installed && installed.skills.length > 0 ? (
         <ControlSection
-          action={<ControlPill tone="ready">{shownInstalled.length} shown</ControlPill>}
-          description="Installed instructions and whether they can run in this environment."
+          action={
+            <ControlPill tone="ready">
+              {shownInstalled.length} <Tr text={'shown'} before />
+            </ControlPill>
+          }
+          description={t('Installed instructions and whether they can run in this environment.')}
           icon={BookOpen}
-          title="Installed skills"
+          title={t('Installed skills')}
         >
           <div className="capability-card-grid">
             {shownInstalled.map((skill) => (
@@ -4798,12 +4972,19 @@ function SkillsPanel(): React.JSX.Element {
                       : `${skill.usage.uses} use${skill.usage.uses === 1 ? '' : 's'}`}
                   </span>
                   {skill.usage.lastUsed ? <span>{skill.usage.lastUsed.slice(0, 10)}</span> : null}
-                  {skill.usage.mine ? <span>Local</span> : null}
+                  {skill.usage.mine ? (
+                    <span>
+                      <Tr text={'Local'} />
+                    </span>
+                  ) : null}
                   {!skill.applies && skill.platforms.length > 0 ? (
                     <span>{skill.platforms.join(', ')}</span>
                   ) : null}
                   {!skill.applies && skill.requires.length > 0 ? (
-                    <span>Needs {skill.requires.join(', ')}</span>
+                    <span>
+                      <Tr text={'Needs'} after />
+                      {skill.requires.join(', ')}
+                    </span>
                   ) : null}
                 </div>
                 {skill.usage.mine ? (
@@ -4834,7 +5015,7 @@ function SkillsPanel(): React.JSX.Element {
                           .finally(() => setBusy(''))
                       }}
                     >
-                      Archive
+                      <Tr text={'Archive'} />
                     </button>
                   </footer>
                 ) : null}
@@ -4845,8 +5026,12 @@ function SkillsPanel(): React.JSX.Element {
             <div className="capability-archive-row">
               <ArchiveRestore aria-hidden="true" size={15} />
               <div>
-                <strong>Archived</strong>
-                <span>Stored safely and excluded from active context.</span>
+                <strong>
+                  <Tr text={'Archived'} />
+                </strong>
+                <span>
+                  <Tr text={'Stored safely and excluded from active context.'} />
+                </span>
               </div>
               <div className="provider-actions">
                 {installed.archived.slice(0, 4).map((name) => (
@@ -4873,7 +5058,11 @@ function SkillsPanel(): React.JSX.Element {
       ) : null}
       {skillStoreTab !== 'installed' ? (
         <ControlSection
-          action={<ControlPill>{shown.length} available</ControlPill>}
+          action={
+            <ControlPill>
+              {shown.length} <Tr text={'available'} before />
+            </ControlPill>
+          }
           className="capability-store-section"
           description={`Configured source · ${skillStoreTab}`}
           icon={PackageCheck}
@@ -4881,9 +5070,15 @@ function SkillsPanel(): React.JSX.Element {
         >
           <div className="capability-store-banner">
             <div>
-              <span>SKILL STORE</span>
+              <span>
+                <Tr text={'SKILL STORE'} />
+              </span>
               <strong>{skillStoreTab}</strong>
-              <p>Review complete instructions and requested tools before adding a skill.</p>
+              <p>
+                <Tr
+                  text={'Review complete instructions and requested tools before adding a skill.'}
+                />
+              </p>
             </div>
             <span className="capability-store-number">
               {String(storeSources.indexOf(skillStoreTab) + 1).padStart(2, '0')}
@@ -4901,8 +5096,9 @@ function SkillsPanel(): React.JSX.Element {
               ))}
               {review.tools?.still_sensitive?.length ? (
                 <small className="provider-cooldown">
-                  It names sensitive tools ({review.tools.still_sensitive.join(', ')}). Those still
-                  ask you every time.
+                  <Tr text={'It names sensitive tools ('} />
+                  {review.tools.still_sensitive.join(', ')}
+                  <Tr text={'). Those still ask you every time.'} after />
                 </small>
               ) : null}
               {/* Read before Marvi reads it. The body used to be shown with an
@@ -4941,7 +5137,7 @@ function SkillsPanel(): React.JSX.Element {
                       : 'Install'}
                 </button>
                 <button className="phase" type="button" onClick={() => setReview(null)}>
-                  Cancel
+                  <Tr text={'Cancel'} />
                 </button>
               </div>
             </div>
@@ -4951,7 +5147,7 @@ function SkillsPanel(): React.JSX.Element {
             <ProcessingCard
               compact
               detail="Reading the configured sources. The first time takes a few seconds; after that it is cached."
-              title="Loading skill store"
+              title={t('Loading skill store')}
             />
           ) : storeFailed ? (
             <ControlRow
@@ -4962,22 +5158,24 @@ function SkillsPanel(): React.JSX.Element {
                     void load()
                   }}
                 >
-                  Try again
+                  <Tr text={'Try again'} />
                 </ControlButton>
               }
-              description="The configured sources could not be reached. Everything already installed is above and still works."
+              description={t(
+                'The configured sources could not be reached. Everything already installed is above and still works.'
+              )}
               icon={ShieldAlert}
-              title="Could not reach the skill store"
+              title={t('Could not reach the skill store')}
             />
           ) : store.length === 0 ? (
             <ControlEmpty
-              description="Add a skill source to populate this catalog."
-              title="No skills available"
+              description={t('Add a skill source to populate this catalog.')}
+              title={t('No skills available')}
             />
           ) : shown.length === 0 ? (
             <ControlEmpty
-              description="Try another search, or choose a different store tab."
-              title="No matching skills"
+              description={t('Try another search, or choose a different store tab.')}
+              title={t('No matching skills')}
             />
           ) : (
             <>
@@ -4995,7 +5193,11 @@ function SkillsPanel(): React.JSX.Element {
                         <strong>{skill.name}</strong>
                         <span>{skill.source}</span>
                       </div>
-                      {skill.installed ? <ControlPill tone="ready">Installed</ControlPill> : null}
+                      {skill.installed ? (
+                        <ControlPill tone="ready">
+                          <Tr text={'Installed'} />
+                        </ControlPill>
+                      ) : null}
                     </header>
                     <p>{skill.description}</p>
                     <div className="capability-card-meta">
@@ -5010,7 +5212,7 @@ function SkillsPanel(): React.JSX.Element {
                           disabled={!!busy}
                           onClick={() => void remove(skill.name)}
                         >
-                          Remove
+                          <Tr text={'Remove'} />
                         </button>
                       ) : (
                         <button
@@ -5028,7 +5230,9 @@ function SkillsPanel(): React.JSX.Element {
               </div>
               <div className="capability-load-row">
                 <span>
-                  Showing {visibleStoreSkills.length} of {shown.length}
+                  <Tr text={'Showing'} after />
+                  {visibleStoreSkills.length} <Tr text={'of'} before after />
+                  {shown.length}
                 </span>
                 {visibleStoreSkills.length < shown.length ? (
                   <button
@@ -5036,11 +5240,14 @@ function SkillsPanel(): React.JSX.Element {
                     onClick={() => setSkillStoreLimit((value) => value + SKILL_STORE_BATCH)}
                     type="button"
                   >
-                    Load {Math.min(SKILL_STORE_BATCH, shown.length - visibleStoreSkills.length)}{' '}
-                    more
+                    <Tr text={'Load'} after />
+                    {Math.min(SKILL_STORE_BATCH, shown.length - visibleStoreSkills.length)}{' '}
+                    <Tr text={'more'} after />
                   </button>
                 ) : (
-                  <span>End of store</span>
+                  <span>
+                    <Tr text={'End of store'} />
+                  </span>
                 )}
               </div>
             </>
@@ -5080,16 +5287,16 @@ function PagePanel({ page }: { page: Page }): React.JSX.Element {
   return (
     <ControlPage description={descriptions[page]} title={page}>
       <ControlEmpty
-        description="This module has no controls to show yet."
+        description={t('This module has no controls to show yet.')}
         icon={Sparkles}
-        title="Nothing here yet"
+        title={t('Nothing here yet')}
       />
     </ControlPage>
   )
 }
 
 function BrandIcon({ className = '' }: { className?: string }): React.JSX.Element {
-  return <img alt="Marvi OS" className={`brand-icon ${className}`} src={appIcon} />
+  return <img alt={t('Marvi OS')} className={`brand-icon ${className}`} src={appIcon} />
 }
 
 /**
@@ -5292,18 +5499,20 @@ function SpeechRecognitionPanel(): React.JSX.Element {
   return (
     <ControlPage
       className="settings-page"
-      description="Configure speech-to-text accuracy and where local recognition runs."
-      title="Speech recognition"
+      description={t('Configure speech-to-text accuracy and where local recognition runs.')}
+      title={t('Speech recognition')}
     >
-      <ControlSection icon={Languages} title="Language">
+      <ControlSection icon={Languages} title={t('Language')}>
         <UnderstandRow />
       </ControlSection>
-      <ControlSection icon={Mic} title="Speech to text · STT">
+      <ControlSection icon={Mic} title={t('Speech to text · STT')}>
         <div>
           <p>
-            How far ahead the recogniser listens before committing a word. Longer is more accurate
-            and lags further behind you; it does not delay the answer, because the last of what you
-            said is flushed the moment you stop.
+            <Tr
+              text={
+                'How far ahead the recogniser listens before committing a word. Longer is more accurate and lags further behind you; it does not delay the answer, because the last of what you said is flushed the moment you stop.'
+              }
+            />
           </p>
         </div>
         <RecognitionSettings />
@@ -5316,35 +5525,44 @@ function VoiceSynthesisPanel(): React.JSX.Element {
   return (
     <ControlPage
       className="settings-page"
-      description="Choose the voice Marvi uses when turning responses into speech."
-      title="Voice synthesis"
+      description={t('Choose the voice Marvi uses when turning responses into speech.')}
+      title={t('Voice synthesis')}
     >
-      <ControlSection icon={Languages} title="Language">
+      <ControlSection icon={Languages} title={t('Language')}>
         <SpeakRow />
       </ControlSection>
-      <ControlSection icon={Waves} title="Text to speech · TTS">
+      <ControlSection icon={Waves} title={t('Text to speech · TTS')}>
         <div>
-          <p>The voice Marvi speaks in. This choice is also available beside the Voice orb.</p>
+          <p>
+            <Tr
+              text={
+                'The voice Marvi speaks in. This choice is also available beside the Voice orb.'
+              }
+            />
+          </p>
         </div>
         <VoicePicker />
       </ControlSection>
-      <ControlSection icon={Radio} title="Announcer">
+      <ControlSection icon={Radio} title={t('Announcer')}>
         <div>
           <p>
-            The voice Marvi speaks in when she starts the conversation — a reminder, something she
-            noticed, or Read Aloud in chat. It runs cold on the processor rather than holding the
-            graphics card, so it is a separate voice from the one in a call. Clone your own
-            recording here and the two can match.
+            <Tr
+              text={
+                'The voice Marvi speaks in when she starts the conversation — a reminder, something she noticed, or Read Aloud in chat. It runs cold on the processor rather than holding the graphics card, so it is a separate voice from the one in a call. Clone your own recording here and the two can match.'
+              }
+            />
           </p>
         </div>
         <AnnouncerVoice />
       </ControlSection>
-      <ControlSection icon={Mic} title="Voice cloning">
+      <ControlSection icon={Mic} title={t('Voice cloning')}>
         <div>
           <p>
-            Two of the three engines have no fixed voice bank — they speak in whatever voice you
-            record for them. CuteTTS has exactly one reference recording and nothing else, so a
-            recording here is the only way it gets another voice.
+            <Tr
+              text={
+                'Two of the three engines have no fixed voice bank — they speak in whatever voice you record for them. CuteTTS has exactly one reference recording and nothing else, so a recording here is the only way it gets another voice.'
+              }
+            />
           </p>
         </div>
         <VoiceCloning />
@@ -5429,12 +5647,12 @@ function AnnouncerVoice(): React.JSX.Element {
               setPage({ ...page, selected: next })
               void window.marvi?.setProviderSettings({ [page.setting]: next })
             }}
-            placeholder="Alba"
+            placeholder={t('Alba')}
             searchPlaceholder="Search announcer voices…"
           />
         }
-        description="Used for reminders, things Marvi noticed, and Read Aloud."
-        title="Announcer voice"
+        description={t('Used for reminders, things Marvi noticed, and Read Aloud.')}
+        title={t('Announcer voice')}
       />
       {page && !page.canClone ? (
         <span className="construction">{page.detail.toUpperCase()}</span>
@@ -5448,7 +5666,7 @@ function AnnouncerVoice(): React.JSX.Element {
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') void record()
                 }}
-                placeholder="Name this voice"
+                placeholder={t('Name this voice')}
                 value={name}
               />
               <button
@@ -5466,7 +5684,7 @@ function AnnouncerVoice(): React.JSX.Element {
               ? `A WAV of one person speaking, ${page.shortestSeconds ?? 1}–${page.longestSeconds ?? 60} seconds.`
               : 'A WAV of one person speaking.'
           }
-          title="Clone a voice for her"
+          title={t('Clone a voice for her')}
         />
       )}
       {problem ? <span className="construction">{problem.toUpperCase()}</span> : null}
@@ -5484,7 +5702,7 @@ function AnnouncerVoice(): React.JSX.Element {
                 }}
                 type="button"
               >
-                DELETE
+                <Tr text={'DELETE'} />
               </button>
             }
             description={`${voice.seconds?.toFixed(1) ?? '?'}s · ${voice.id}`}
@@ -5526,7 +5744,11 @@ function VoiceCloning(): React.JSX.Element {
   }, [])
 
   if (page && page.engines.length === 0) {
-    return <span className="construction">NO INSTALLED ENGINE CAN SPEAK IN A RECORDED VOICE.</span>
+    return (
+      <span className="construction">
+        <Tr text={'NO INSTALLED ENGINE CAN SPEAK IN A RECORDED VOICE.'} />
+      </span>
+    )
   }
 
   const record = async (): Promise<void> => {
@@ -5560,11 +5782,13 @@ function VoiceCloning(): React.JSX.Element {
             }))}
             value={engine}
             onChange={setEngine}
-            placeholder="Choose an engine"
+            placeholder={t('Choose an engine')}
           />
         }
-        description="A cloned voice belongs to the engine that made it and appears in that engine's voice list."
-        title="Engine"
+        description={t(
+          "A cloned voice belongs to the engine that made it and appears in that engine's voice list."
+        )}
+        title={t('Engine')}
       />
       <ControlRow
         action={
@@ -5575,7 +5799,7 @@ function VoiceCloning(): React.JSX.Element {
               onKeyDown={(event) => {
                 if (event.key === 'Enter') void record()
               }}
-              placeholder="Name this voice"
+              placeholder={t('Name this voice')}
               value={name}
             />
             <button
@@ -5593,7 +5817,7 @@ function VoiceCloning(): React.JSX.Element {
             ? `A WAV of one person speaking, ${page.shortestSeconds}–${page.longestSeconds} seconds. Five to ten seconds of ordinary speech works best.`
             : 'A WAV of one person speaking.'
         }
-        title="Add a voice"
+        title={t('Add a voice')}
       />
       {problem ? <span className="construction">{problem.toUpperCase()}</span> : null}
       {(page?.clones ?? []).map((clone) => (
@@ -5606,7 +5830,7 @@ function VoiceCloning(): React.JSX.Element {
               }}
               type="button"
             >
-              DELETE
+              <Tr text={'DELETE'} />
             </button>
           }
           description={`${clone.engine} · ${clone.seconds.toFixed(1)}s · ${clone.id}`}
@@ -5627,12 +5851,12 @@ function WakeWordPanel(): React.JSX.Element {
   return (
     <ControlPage
       className="settings-page"
-      description="Set the local phrase that starts a hands-free voice session."
-      title="Wake word"
+      description={t('Set the local phrase that starts a hands-free voice session.')}
+      title={t('Wake word')}
     >
       <ControlSection
         action={
-          <UiTooltip label="Ask the Gateway for the wake word status again">
+          <UiTooltip label={t('Ask the Gateway for the wake word status again')}>
             <ControlButton
               disabled={refreshing}
               onClick={() => {
@@ -5650,12 +5874,11 @@ function WakeWordPanel(): React.JSX.Element {
           </UiTooltip>
         }
         icon={Radio}
-        title="Wake word"
+        title={t('Wake word')}
       >
         <div>
           <p>
-            A small process that starts at login and waits for her name. Saying &ldquo;Marvi&rdquo;
-            joins hands-free, exactly as pressing Join does, and opens Marvi first if she is closed.
+            <Tr text="A small process starts at login and waits for her name. Saying “Marvi” joins hands-free, like pressing Join, and opens Marvi if she is closed." />
           </p>
         </div>
         <WakeSettings />
@@ -5758,7 +5981,7 @@ function RecognitionSettings(): React.JSX.Element {
             ? 'The chosen recogniser is no longer installed; Marvi is listening with the default.'
             : 'Marvi restarts the voice worker after this changes, and unloads the recogniser she was using.'
         }
-        title="Recogniser"
+        title={t('Recogniser')}
       />
       {/* Parakeet only. The chunk and the lookahead are how a non-streaming
           model is made to look streaming; Nemotron feeds 320 ms blocks and
@@ -5777,11 +6000,13 @@ function RecognitionSettings(): React.JSX.Element {
                 setPace(next)
                 save({ MARVI_STT_LOOKAHEAD: chosen.lookahead, MARVI_STT_CHUNK: chosen.chunk })
               }}
-              placeholder="Accurate"
+              placeholder={t('Accurate')}
             />
           }
-          description="How long Marvi waits before putting a word on screen. It does not change how fast she answers — the end of a sentence is flushed the moment you stop."
-          title="Subtitle speed"
+          description={t(
+            'How long Marvi waits before putting a word on screen. It does not change how fast she answers — the end of a sentence is flushed the moment you stop.'
+          )}
+          title={t('Subtitle speed')}
         />
       ) : null}
       <ControlRow
@@ -5796,11 +6021,11 @@ function RecognitionSettings(): React.JSX.Element {
               setDevice(next)
               save({ MARVI_STT_DEVICE: next })
             }}
-            placeholder="Processor"
+            placeholder={t('Processor')}
           />
         }
-        description="Marvi restarts the voice worker after this changes."
-        title="Inference device"
+        description={t('Marvi restarts the voice worker after this changes.')}
+        title={t('Inference device')}
       />
     </>
   )
@@ -5860,13 +6085,13 @@ function WorkspacePanel(): React.JSX.Element {
   return (
     <ControlPage
       className="settings-page"
-      description="Which folders the file tools may touch, and what is refused to all of them."
-      title="Workspace"
+      description={t('Which folders the file tools may touch, and what is refused to all of them.')}
+      title={t('Workspace')}
     >
       <ControlSection
-        description="Where a path without a drive letter means. Marvi works here by default."
+        description={t('Where a path without a drive letter means. Marvi works here by default.')}
         icon={FolderOpen}
-        title="Workspace folder"
+        title={t('Workspace folder')}
       >
         <ControlRow
           action={
@@ -5880,7 +6105,7 @@ function WorkspacePanel(): React.JSX.Element {
               }}
               type="button"
             >
-              Choose folder
+              <Tr text={'Choose folder'} />
             </button>
           }
           description={
@@ -5895,9 +6120,11 @@ function WorkspacePanel(): React.JSX.Element {
       </ControlSection>
 
       <ControlSection
-        description="Asked separately, because the useful answer is usually different for each."
+        description={t(
+          'Asked separately, because the useful answer is usually different for each.'
+        )}
         icon={Eye}
-        title="How far the tools may reach"
+        title={t('How far the tools may reach')}
       >
         <ControlRow
           action={
@@ -5905,11 +6132,11 @@ function WorkspacePanel(): React.JSX.Element {
               options={scopeOptions('Reading')}
               value={policy?.readScope ?? 'strict'}
               onChange={(next) => void apply({ read_scope: next })}
-              placeholder="Workspace only"
+              placeholder={t('Workspace only')}
             />
           }
           description={`Used by ${(policy?.tools.read ?? []).join(', ') || 'the reading tools'}.`}
-          title="Reading"
+          title={t('Reading')}
         />
         <ControlRow
           action={
@@ -5917,18 +6144,20 @@ function WorkspacePanel(): React.JSX.Element {
               options={scopeOptions('Writing')}
               value={policy?.writeScope ?? 'strict'}
               onChange={(next) => void apply({ write_scope: next })}
-              placeholder="Workspace only"
+              placeholder={t('Workspace only')}
             />
           }
           description={`Used by ${(policy?.tools.write ?? []).join(', ') || 'the writing tools'}.`}
-          title="Writing"
+          title={t('Writing')}
         />
       </ControlSection>
 
       <ControlSection
-        description="Refused in both modes. A folder covers everything inside it; an entry with a * matches by name anywhere."
+        description={t(
+          'Refused in both modes. A folder covers everything inside it; an entry with a * matches by name anywhere.'
+        )}
         icon={ShieldOff}
-        title="Never touch"
+        title={t('Never touch')}
       >
         <div className="workspace-blacklist">
           {(policy?.blacklist ?? []).map((entry) => (
@@ -5944,12 +6173,14 @@ function WorkspacePanel(): React.JSX.Element {
                 }
                 type="button"
               >
-                Remove
+                <Tr text={'Remove'} />
               </button>
             </div>
           ))}
           {policy && policy.blacklist.length === 0 ? (
-            <p className="control-note">Nothing added. The built-in rules below still apply.</p>
+            <p className="control-note">
+              <Tr text={'Nothing added. The built-in rules below still apply.'} />
+            </p>
           ) : null}
           <form
             className="workspace-add"
@@ -5962,22 +6193,24 @@ function WorkspacePanel(): React.JSX.Element {
             }}
           >
             <input
-              aria-label="Path or pattern to refuse"
+              aria-label={t('Path or pattern to refuse')}
               onChange={(event) => setAdding(event.target.value)}
-              placeholder="C:\\Users\\me\\Private   or   *.key"
+              placeholder={t('C:\\Users\\me\\Private   or   *.key')}
               value={adding}
             />
             <button className="ghost-button" type="submit">
-              Add
+              <Tr text={'Add'} />
             </button>
           </form>
         </div>
       </ControlSection>
 
       <ControlSection
-        description="Environment files, key stores, and Marvi's own settings. Writing to them is always refused — ask her for a key instead and the value never passes through the model."
+        description={t(
+          "Environment files, key stores, and Marvi's own settings. Writing to them is always refused — ask her for a key instead and the value never passes through the model."
+        )}
         icon={KeyRound}
-        title="Files with secrets in them"
+        title={t('Files with secrets in them')}
       >
         <ControlRow
           action={
@@ -6001,21 +6234,23 @@ function WorkspacePanel(): React.JSX.Element {
               ]}
               value={policy?.secretAccess ?? 'off'}
               onChange={(next) => void apply({ secret_access: next })}
-              placeholder="Refuse"
+              placeholder={t('Refuse')}
             />
           }
           description={
             '“Is my key set?” and “what is my key?” look like the same question. ' +
             'Names only answers the first without answering the second.'
           }
-          title="Reading them"
+          title={t('Reading them')}
         />
       </ControlSection>
 
       <ControlSection
-        description="These hold whatever the settings say. Reading a credential is governed by the setting above; the rest cannot be lifted at all."
+        description={t(
+          'These hold whatever the settings say. Reading a credential is governed by the setting above; the rest cannot be lifted at all.'
+        )}
         icon={ShieldAlert}
-        title="Always refused"
+        title={t('Always refused')}
       >
         <div className="workspace-builtin">
           {(policy?.builtin ?? []).map((rule) => (
@@ -6091,7 +6326,7 @@ function UnderstandRow(): React.JSX.Element {
           }))}
           value={understand}
           onChange={(next) => apply({ understand: next })}
-          placeholder="Any language"
+          placeholder={t('Any language')}
         />
       }
       description={
@@ -6103,7 +6338,7 @@ function UnderstandRow(): React.JSX.Element {
               ? 'She transcribes whatever language she hears, and answers in it unless told otherwise.'
               : 'Parakeet takes no language argument, so this is a preference rather than a lock. Only English has a model that can enforce it.'
       }
-      title="Language she listens for"
+      title={t('Language she listens for')}
     />
   )
 }
@@ -6120,7 +6355,7 @@ function SpeakRow(): React.JSX.Element {
           options={options.map((option) => ({ value: option.code, label: option.name }))}
           value={policy?.speak ?? 'en'}
           onChange={(next) => apply({ speak: next })}
-          placeholder="English"
+          placeholder={t('English')}
         />
       }
       description={
@@ -6128,7 +6363,7 @@ function SpeakRow(): React.JSX.Element {
           ? 'What she writes and what the voice pronounces. Both, so they cannot disagree.'
           : 'Only languages with an installed voice are offered: one without is read with English phonemes, which is noise rather than an accent.'
       }
-      title="Language she answers in"
+      title={t('Language she answers in')}
     />
   )
 }
@@ -6200,7 +6435,7 @@ function AppearancePanel({
       title={pageCopy.title}
     >
       {section === 'themes' ? (
-        <ControlSection icon={Palette} title="Dark themes">
+        <ControlSection icon={Palette} title={t('Dark themes')}>
           <ControlRow
             action={
               <AppearanceChoices
@@ -6242,19 +6477,21 @@ function AppearancePanel({
                     swatches: ['#101112', '#222427', '#8ca6b8']
                   }
                 ]}
-                label="Interface style"
+                label={t('Interface style')}
                 onChange={(value) => setAppearanceStyle(value as AppearanceStyle)}
                 value={appearanceStyle}
               />
             }
-            description="Changes surfaces, contrast, spacing, and accent treatment. All options stay dark."
-            title="Style"
+            description={t(
+              'Changes surfaces, contrast, spacing, and accent treatment. All options stay dark.'
+            )}
+            title={t('Style')}
           />
         </ControlSection>
       ) : null}
 
       {section === 'fonts' ? (
-        <ControlSection icon={Languages} title="Interface type">
+        <ControlSection icon={Languages} title={t('Interface type')}>
           <ControlRow
             action={
               <AppearanceChoices
@@ -6296,25 +6533,27 @@ function AppearancePanel({
                     sample: 'Ag 01'
                   }
                 ]}
-                label="Interface font"
+                label={t('Interface font')}
                 onChange={(value) => setFontFamily(value as FontFamily)}
                 value={fontFamily}
               />
             }
-            description="Applies to navigation, settings, chat, and controls while code remains monospaced."
-            title="Font"
+            description={t(
+              'Applies to navigation, settings, chat, and controls while code remains monospaced.'
+            )}
+            title={t('Font')}
           />
         </ControlSection>
       ) : null}
 
       {section === 'window' ? (
-        <ControlSection icon={Sparkles} title="Window and backdrop">
+        <ControlSection icon={Sparkles} title={t('Window and backdrop')}>
           <ControlRow
             action={
               <label className="setting-range">
                 <span>{translucency}%</span>
                 <input
-                  aria-label="Window translucency"
+                  aria-label={t('Window translucency')}
                   max={100}
                   min={0}
                   onChange={(event) => setTranslucency(Number(event.target.value))}
@@ -6323,29 +6562,33 @@ function AppearancePanel({
                 />
               </label>
             }
-            description="Show the desktop through the control center."
-            title="Window translucency"
+            description={t('Show the desktop through the control center.')}
+            title={t('Window translucency')}
           />
           <ControlRow
             action={
               <select
-                aria-label="Backdrop mode"
+                aria-label={t('Backdrop mode')}
                 onChange={(event) => setBackgroundMode(event.target.value as typeof backgroundMode)}
                 value={backgroundMode}
               >
-                <option value="electricGaze">Electric gaze</option>
-                <option value="none">Off</option>
+                <option value="electricGaze">
+                  <Tr text={'Electric gaze'} />
+                </option>
+                <option value="none">
+                  <Tr text={'Off'} />
+                </option>
               </select>
             }
-            description="The animated ASCII backdrop is packaged locally."
-            title="Backdrop"
+            description={t('The animated ASCII backdrop is packaged locally.')}
+            title={t('Backdrop')}
           />
           <ControlRow
             action={
               <label className="setting-range">
                 <span>{backgroundOpacity}%</span>
                 <input
-                  aria-label="Backdrop opacity"
+                  aria-label={t('Backdrop opacity')}
                   disabled={backgroundMode !== 'electricGaze'}
                   max={100}
                   min={0}
@@ -6355,18 +6598,18 @@ function AppearancePanel({
                 />
               </label>
             }
-            description="Adjust how strongly the backdrop appears behind page content."
-            title="Backdrop opacity"
+            description={t('Adjust how strongly the backdrop appears behind page content.')}
+            title={t('Backdrop opacity')}
           />
         </ControlSection>
       ) : null}
 
       {section === 'island' ? (
-        <ControlSection icon={Info} title="Dynamic Island placement">
+        <ControlSection icon={Info} title={t('Dynamic Island placement')}>
           <ControlRow
             action={
               <select
-                aria-label="Island display"
+                aria-label={t('Island display')}
                 onChange={(event) =>
                   updatePlacement({
                     ...placement,
@@ -6375,7 +6618,9 @@ function AppearancePanel({
                 }
                 value={placement.displayId ?? 'auto'}
               >
-                <option value="auto">Auto · current</option>
+                <option value="auto">
+                  <Tr text={'Auto · current'} />
+                </option>
                 {displays.map((display) => (
                   <option key={display.id} value={display.id}>
                     {display.label}
@@ -6384,12 +6629,12 @@ function AppearancePanel({
                 ))}
               </select>
             }
-            description="Auto follows the current Windows display."
-            title="Display"
+            description={t('Auto follows the current Windows display.')}
+            title={t('Display')}
           />
           <ControlRow
             action={
-              <div className="alignment-buttons" aria-label="Island alignment">
+              <div className="alignment-buttons" aria-label={t('Island alignment')}>
                 {(['left', 'center', 'right'] as IslandAlignment[]).map((alignment) => (
                   <button
                     aria-pressed={placement.alignment === alignment}
@@ -6403,14 +6648,14 @@ function AppearancePanel({
                 ))}
               </div>
             }
-            description="Place the recessed Island line along the selected display's top edge."
-            title="Alignment"
+            description={t("Place the recessed Island line along the selected display's top edge.")}
+            title={t('Alignment')}
           />
         </ControlSection>
       ) : null}
 
       {section === 'companion' ? (
-        <ControlSection icon={Sparkles} title="Desktop companion">
+        <ControlSection icon={Sparkles} title={t('Desktop companion')}>
           <ControlRow
             action={
               <button
@@ -6423,13 +6668,13 @@ function AppearancePanel({
                 {petPreferences.enabled ? 'Visible' : 'Hidden'}
               </button>
             }
-            description="Show a click-through companion that mirrors Marvi's live state."
-            title="Companion"
+            description={t("Show a click-through companion that mirrors Marvi's live state.")}
+            title={t('Companion')}
           />
           <ControlRow
             action={
               <select
-                aria-label="Pet display"
+                aria-label={t('Pet display')}
                 onChange={(event) =>
                   updatePet({
                     ...petPreferences,
@@ -6438,7 +6683,9 @@ function AppearancePanel({
                 }
                 value={petPreferences.displayId ?? 'auto'}
               >
-                <option value="auto">Auto · current</option>
+                <option value="auto">
+                  <Tr text={'Auto · current'} />
+                </option>
                 {displays.map((display) => (
                   <option key={display.id} value={display.id}>
                     {display.label}
@@ -6447,12 +6694,12 @@ function AppearancePanel({
                 ))}
               </select>
             }
-            description="Auto follows the current Windows display."
-            title="Display"
+            description={t('Auto follows the current Windows display.')}
+            title={t('Display')}
           />
           <ControlRow
             action={
-              <div className="alignment-buttons" aria-label="Pet side">
+              <div className="alignment-buttons" aria-label={t('Pet side')}>
                 {(['left', 'right'] as PetSide[]).map((side) => (
                   <button
                     aria-pressed={petPreferences.side === side}
@@ -6466,26 +6713,34 @@ function AppearancePanel({
                 ))}
               </div>
             }
-            description="Choose which lower corner holds the companion."
-            title="Corner"
+            description={t('Choose which lower corner holds the companion.')}
+            title={t('Corner')}
           />
           <ControlRow
             action={
               <select
-                aria-label="Pet size"
+                aria-label={t('Pet size')}
                 onChange={(event) =>
                   updatePet({ ...petPreferences, scale: Number(event.target.value) as PetScale })
                 }
                 value={petPreferences.scale}
               >
-                <option value={0.4}>Tiny · 40%</option>
-                <option value={0.5}>Compact · 50%</option>
-                <option value={0.7}>Medium · 70%</option>
-                <option value={1}>Full · 100%</option>
+                <option value={0.4}>
+                  <Tr text={'Tiny · 40%'} />
+                </option>
+                <option value={0.5}>
+                  <Tr text={'Compact · 50%'} />
+                </option>
+                <option value={0.7}>
+                  <Tr text={'Medium · 70%'} />
+                </option>
+                <option value={1}>
+                  <Tr text={'Full · 100%'} />
+                </option>
               </select>
             }
-            description="Scale the sprite and its compact control strip together."
-            title="Size"
+            description={t('Scale the sprite and its compact control strip together.')}
+            title={t('Size')}
           />
         </ControlSection>
       ) : null}
@@ -6582,7 +6837,7 @@ function PreferencesPanel({
           }
         />
       </ControlSection>
-      <ControlSection className="settings-services" icon={Server} title="Runtime">
+      <ControlSection className="settings-services" icon={Server} title={t('Runtime')}>
         <div>
           <p>
             {t(
@@ -6594,7 +6849,7 @@ function PreferencesPanel({
         <ServiceHealth compact />
       </ControlSection>
 
-      <ControlSection icon={Keyboard} title="Keyboard shortcuts">
+      <ControlSection icon={Keyboard} title={t('Keyboard shortcuts')}>
         <ControlRow
           action={
             <button className="mode-switch" onClick={onHotkeys} type="button">
@@ -6605,11 +6860,11 @@ function PreferencesPanel({
             'Talk to Marvi, stop her, open Chat or show the window — from anywhere in Windows, whether or not Marvi has focus.',
             interfaceLocale
           )}
-          title="Global shortcuts"
+          title={t('Global shortcuts')}
         />
       </ControlSection>
 
-      <ControlSection icon={ShieldAlert} title="Confirmation mode">
+      <ControlSection icon={ShieldAlert} title={t('Confirmation mode')}>
         <ControlRow
           action={
             <button
@@ -6629,11 +6884,11 @@ function PreferencesPanel({
             'Confirm asks before actions when the model decides approval is needed. YOLO bypasses every prompt.',
             interfaceLocale
           )}
-          title="Action approval"
+          title={t('Action approval')}
         />
       </ControlSection>
 
-      <ControlSection icon={ShieldCheck} title="Privacy mode">
+      <ControlSection icon={ShieldCheck} title={t('Privacy mode')}>
         <ControlRow
           action={
             <button
@@ -6653,22 +6908,22 @@ function PreferencesPanel({
             'Switches off web search, connected accounts, Telegram, hosted memory and update checks, and requires a local model for every call. Your own MCP servers are not affected.',
             interfaceLocale
           )}
-          title="Keep everything on this machine"
+          title={t('Keep everything on this machine')}
         />
       </ControlSection>
 
-      <ControlSection icon={Gauge} title="Device status">
+      <ControlSection icon={Gauge} title={t('Device status')}>
         <ControlRow
           action={<ControlPill>{DEVICE_COPY[deviceState(runtime, 'microphone')]}</ControlPill>}
-          title="Microphone"
+          title={t('Microphone')}
         />
         <ControlRow
           action={<ControlPill>{DEVICE_COPY[deviceState(runtime, 'camera')]}</ControlPill>}
-          title="Camera"
+          title={t('Camera')}
         />
         <ControlRow
           action={<ControlPill tone={stateTone(runtime.state)}>{runtime.state}</ControlPill>}
-          title="Gateway"
+          title={t('Gateway')}
         />
       </ControlSection>
     </ControlPage>
@@ -6713,16 +6968,20 @@ function AboutPanel({
   ]
 
   return (
-    <ControlPage className="about-control-page" title="About">
+    <ControlPage className="about-control-page" title={t('About')}>
       <div className="control-about-identity">
         <BrandIcon className="brand-icon-about" />
         <div>
-          <h2>Marvi OS</h2>
-          <p>Local voice and vision assistant for Windows</p>
+          <h2>
+            <Tr text={'Marvi OS'} />
+          </h2>
+          <p>
+            <Tr text={'Local voice and vision assistant for Windows'} />
+          </p>
         </div>
       </div>
 
-      <ControlSection icon={Info} title="Build information">
+      <ControlSection icon={Info} title={t('Build information')}>
         {facts.map(([label, value]) => (
           <ControlRow
             action={<span className="control-value">{value}</span>}
@@ -6732,19 +6991,19 @@ function AboutPanel({
         ))}
       </ControlSection>
 
-      <ControlSection icon={Activity} title="Updates">
+      <ControlSection icon={Activity} title={t('Updates')}>
         <AboutUpdates version={build.version} />
       </ControlSection>
 
-      <ControlSection icon={Wrench} title="Support">
+      <ControlSection icon={Wrench} title={t('Support')}>
         <ControlRow
           action={
             <ControlButton onClick={() => void window.marvi?.copyDiagnostics()}>
-              Copy diagnostics
+              <Tr text={'Copy diagnostics'} />
             </ControlButton>
           }
-          description="Copies a redacted local report for troubleshooting."
-          title="Diagnostics"
+          description={t('Copies a redacted local report for troubleshooting.')}
+          title={t('Diagnostics')}
         />
       </ControlSection>
     </ControlPage>
@@ -7069,6 +7328,7 @@ function useWakeJoin(): void {
 }
 
 export default function App(): React.JSX.Element {
+  useStore($interfaceLocale)
   const surface = new URLSearchParams(window.location.search).get('surface')
   if (surface === 'island') return <IslandSurface />
   return (

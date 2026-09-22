@@ -1,3 +1,4 @@
+import { t } from '../../store/locale'
 import { useEffect, useMemo, useState } from 'react'
 import type { ChatMessage } from '../types'
 
@@ -36,7 +37,7 @@ export function ConversationMap({
 
   if (turns.length < 3) return null
   return (
-    <nav aria-label="Conversation map" className="chat-conversation-map">
+    <nav aria-label={t('Conversation map')} className="chat-conversation-map">
       {turns.map((turn, index) => (
         <button
           aria-current={turn.id === active ? 'location' : undefined}

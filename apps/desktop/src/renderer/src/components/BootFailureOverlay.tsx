@@ -1,3 +1,4 @@
+import { Tr } from '../store/locale'
 /**
  * Recovery surface for a hard boot failure (gateway never came up). Without
  * this the shell renders dead — "gateway offline" with no way to retry or
@@ -43,10 +44,15 @@ export function BootFailureOverlay(): React.JSX.Element | null {
     <div className="boot-failure-overlay" role="alert">
       <div className="boot-failure-card">
         <span className="panel-label">{'// BOOT FAILURE'}</span>
-        <h2>MARVI GATEWAY DID NOT START</h2>
+        <h2>
+          <Tr text={'MARVI GATEWAY DID NOT START'} />
+        </h2>
         <p>
-          The local gateway never became ready. Marvi OS keeps the shell alive so you can retry or
-          inspect diagnostics instead of staring at a dead window.
+          <Tr
+            text={
+              'The local gateway never became ready. Marvi OS keeps the shell alive so you can retry or inspect diagnostics instead of staring at a dead window.'
+            }
+          />
         </p>
         <pre className="boot-failure-log">{details.join('\n')}</pre>
         <div className="boot-failure-actions">
@@ -60,7 +66,7 @@ export function BootFailureOverlay(): React.JSX.Element | null {
             }}
             type="button"
           >
-            RETRY BOOT
+            <Tr text={'RETRY BOOT'} />
           </button>
           <button
             onClick={() => {
@@ -72,7 +78,7 @@ export function BootFailureOverlay(): React.JSX.Element | null {
             }}
             type="button"
           >
-            UPDATE MARVI
+            <Tr text={'UPDATE MARVI'} />
           </button>
           <button
             onClick={() => {
@@ -81,10 +87,12 @@ export function BootFailureOverlay(): React.JSX.Element | null {
             }}
             type="button"
           >
-            OPEN TRAY SHELL
+            <Tr text={'OPEN TRAY SHELL'} />
           </button>
         </div>
-        <small>GATEWAY LOGS: %LOCALAPPDATA%\Marvi-OS\logs</small>
+        <small>
+          <Tr text={'GATEWAY LOGS: %LOCALAPPDATA%\\Marvi-OS\\logs'} />
+        </small>
       </div>
     </div>
   )

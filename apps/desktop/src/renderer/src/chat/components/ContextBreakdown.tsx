@@ -1,3 +1,4 @@
+import { Tr } from '../../store/locale'
 import type { ChatContext } from '../../../../shared/runtime'
 import { compactTokens, contextPercent, contextSegments } from '../context-breakdown'
 
@@ -35,7 +36,9 @@ export function ContextBreakdown({
   return (
     <div className="chat-context-card">
       <header>
-        <span>Context usage</span>
+        <span>
+          <Tr text={'Context usage'} />
+        </span>
         <strong>
           {percent === null ? 'Usage unknown' : `${compactTokens(used)} / ${compactTokens(window)}`}
         </strong>
@@ -78,19 +81,27 @@ export function ContextBreakdown({
       ) : null}
       <dl>
         <div>
-          <dt>MESSAGES</dt>
+          <dt>
+            <Tr text={'MESSAGES'} />
+          </dt>
           <dd>{context?.messages ?? 0}</dd>
         </div>
         <div>
-          <dt>FILES</dt>
+          <dt>
+            <Tr text={'FILES'} />
+          </dt>
           <dd>{(context?.files ?? 0) + pendingFiles}</dd>
         </div>
         <div>
-          <dt>SOURCES</dt>
+          <dt>
+            <Tr text={'SOURCES'} />
+          </dt>
           <dd>{context?.sources ?? 0}</dd>
         </div>
         <div>
-          <dt>ROUTE</dt>
+          <dt>
+            <Tr text={'ROUTE'} />
+          </dt>
           <dd title={route || context?.model || 'Default'}>
             {route || context?.model || 'Default'}
           </dd>

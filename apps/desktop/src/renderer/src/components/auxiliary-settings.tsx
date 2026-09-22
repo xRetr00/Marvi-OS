@@ -1,3 +1,5 @@
+import { t } from '../store/locale'
+import { Tr } from '../store/locale'
 import React, { useCallback, useEffect, useState } from 'react'
 import { ShieldAlert } from 'lucide-react'
 
@@ -69,13 +71,18 @@ export function AuxiliarySettings(): React.JSX.Element {
     [catalog]
   )
 
-  if (!page) return <span className="construction">UNAVAILABLE</span>
+  if (!page)
+    return (
+      <span className="construction">
+        <Tr text={'UNAVAILABLE'} />
+      </span>
+    )
   if (page.providers.length === 0) {
     return (
       <ControlEmpty
-        description="Connect a provider on the Models page and these can point at it."
+        description={t('Connect a provider on the Models page and these can point at it.')}
         icon={ShieldAlert}
-        title="No providers configured"
+        title={t('No providers configured')}
       />
     )
   }
@@ -149,11 +156,11 @@ export function AuxiliarySettings(): React.JSX.Element {
               <div className="provider-actions">
                 {role.auto ? null : (
                   <ControlButton disabled={busy} onClick={() => void toAuto(role)}>
-                    Use main
+                    <Tr text={'Use main'} />
                   </ControlButton>
                 )}
                 <ControlButton disabled={busy} onClick={() => begin(role)}>
-                  Change
+                  <Tr text={'Change'} />
                 </ControlButton>
               </div>
             )
@@ -174,7 +181,7 @@ export function AuxiliarySettings(): React.JSX.Element {
                     setDraft({ provider: next, model: '', effort: '' })
                     void load(next)
                   }}
-                  placeholder="Provider"
+                  placeholder={t('Provider')}
                 />
                 <Picker
                   // The same options the main model gets, built the same way:
@@ -223,7 +230,7 @@ export function AuxiliarySettings(): React.JSX.Element {
                     ]}
                     value={draft.effort}
                     onChange={(next) => setDraft((current) => ({ ...current, effort: next }))}
-                    placeholder="Default"
+                    placeholder={t('Default')}
                   />
                 ) : null}
                 <span className="provider-actions">
@@ -233,7 +240,9 @@ export function AuxiliarySettings(): React.JSX.Element {
                   >
                     {busy ? 'Saving' : 'Apply'}
                   </ControlButton>
-                  <ControlButton onClick={cancel}>Cancel</ControlButton>
+                  <ControlButton onClick={cancel}>
+                    <Tr text={'Cancel'} />
+                  </ControlButton>
                 </span>
               </span>
             ) : (
@@ -256,7 +265,11 @@ export function AuxiliarySettings(): React.JSX.Element {
       ))}
       {stale.length > 0 ? (
         <ControlRow
-          action={<ControlButton onClick={() => void resetAll()}>Reset all to main</ControlButton>}
+          action={
+            <ControlButton onClick={() => void resetAll()}>
+              <Tr text={'Reset all to main'} />
+            </ControlButton>
+          }
           description={`${stale.map((role) => role.title).join(', ')} still ${
             stale.length === 1 ? 'runs' : 'run'
           } on ${
@@ -266,7 +279,7 @@ export function AuxiliarySettings(): React.JSX.Element {
           }, not your main model. A job pinned to a provider you have stopped using goes on
           spending there quietly.`}
           icon={ShieldAlert}
-          title="Pinned away from your main model"
+          title={t('Pinned away from your main model')}
         />
       ) : null}
     </>

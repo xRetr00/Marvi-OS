@@ -1,10 +1,13 @@
 import { afterEach, describe, expect, it } from 'vitest'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { createElement } from 'react'
 import {
   applyInterfaceLocale,
   formatDate,
   formatNumber,
   formatRelative,
   setInterfaceLocale,
+  Tr,
   syncLocaleStorage,
   t
 } from './locale'
@@ -36,5 +39,11 @@ describe('interface locale', () => {
       '٢٠٢٦'
     )
     expect(formatRelative(-2, 'day', 'ar')).toBe('أول أمس')
+  })
+
+  it('renders extracted labels in Arabic while preserving inline spacing', () => {
+    setInterfaceLocale('ar')
+    expect(renderToStaticMarkup(createElement(Tr, { text: 'Save', before: true, after: true })))
+      .toBe(' حفظ ')
   })
 })

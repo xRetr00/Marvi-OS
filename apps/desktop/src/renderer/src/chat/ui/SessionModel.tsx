@@ -1,3 +1,4 @@
+import { t } from '../../store/locale'
 import { useEffect, useState } from 'react'
 
 import type { ModelPage, ProviderPage } from '../../../../shared/runtime'
@@ -75,7 +76,7 @@ export function SessionModel({
           // means nothing on another, and may not even be accepted.
           onChange(next)
         }}
-        placeholder="Default model"
+        placeholder={t('Default model')}
         searchPlaceholder="Search models…"
       />
     </div>

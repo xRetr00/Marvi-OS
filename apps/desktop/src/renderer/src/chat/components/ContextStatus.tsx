@@ -1,3 +1,4 @@
+import { Tr } from '../../store/locale'
 import type { ChatContext } from '../../../../shared/runtime'
 import {
   compactTokens,
@@ -34,7 +35,9 @@ export function ContextStatus({
             : `Show context breakdown, ${percent}% used`
         }
       >
-        <span className="status-context-label">Context</span>
+        <span className="status-context-label">
+          <Tr text={'Context'} />
+        </span>
         <span className="status-detail">{usage}</span>
         <span aria-hidden="true" className="status-context-meter">
           {cells.map((cell, index) => (

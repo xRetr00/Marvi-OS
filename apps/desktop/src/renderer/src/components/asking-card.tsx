@@ -1,3 +1,5 @@
+import { t } from '../store/locale'
+import { Tr } from '../store/locale'
 /**
  * The box Marvi puts on screen when hearing the answer wrong would cost more
  * than the question saved — a spelling, an address, an account name.
@@ -56,7 +58,7 @@ export function AskingCard({
   return (
     <div className="dynamic-island island-confirmation island-asking">
       <form
-        aria-label="A question from Marvi"
+        aria-label={t('A question from Marvi')}
         className="asking-card"
         onSubmit={(event) => {
           event.preventDefault()
@@ -90,7 +92,7 @@ export function AskingCard({
         ) : null}
         <div className="asking-actions">
           <button className="asking-send" disabled={busy || !readyToSend(answer)} type="submit">
-            Send
+            <Tr text={'Send'} />
           </button>
           <button
             className="asking-later"
@@ -98,16 +100,16 @@ export function AskingCard({
             onClick={() => void settle('dismissed')}
             type="button"
           >
-            Not now
+            <Tr text={'Not now'} />
           </button>
           <button
             className="asking-never"
             disabled={busy}
             onClick={() => void settle('declined')}
-            title="Marvi will not ask about this again"
+            title={t('Marvi will not ask about this again')}
             type="button"
           >
-            Don&apos;t ask
+            <Tr text="Don't ask" />
           </button>
         </div>
       </form>

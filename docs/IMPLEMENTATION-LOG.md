@@ -1,5 +1,18 @@
 # Implementation Log
 
+## 2026-09-22 — Static Arabic renderer copy
+
+- Extracted static JSX text, accessibility labels, placeholders, and page copy
+  into a reactive renderer catalogue. The Arabic JSON catalogue covers the
+  control center, settings, Chat, room, vision, memory inspection, workflows,
+  browser controls, and Island copy. Technical names and identifiers stay
+  unchanged. A source audit fails when a static extracted key lacks Arabic.
+- Dynamic status and error strings, Gateway-authored prose, remaining formats,
+  and visual RTL acceptance are the next milestones. No speech engine or
+  Arabic memory index was added.
+- Desktop typecheck and production renderer build passed; 609 desktop tests
+  passed, including the catalogue audit; `git diff --check` passed.
+
 ## 2026-09-22 — Arabic interface groundwork
 
 - Added a persisted English/Arabic interface preference, cross-window sync,

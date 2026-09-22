@@ -1,3 +1,4 @@
+import { Tr } from '../../store/locale'
 import { ActionBarPrimitive, MessagePrimitive } from '@assistant-ui/react'
 import { AbstractIcon } from '../../components/abstract-icon'
 import { describeFailure } from './describeFailure'
@@ -13,13 +14,15 @@ export function MessageError({ error }: { error: string }): React.JSX.Element {
           <p>{failure.detail}</p>
           {failure.technical !== failure.detail ? (
             <details>
-              <summary>Technical details</summary>
+              <summary>
+                <Tr text={'Technical details'} />
+              </summary>
               <pre>{failure.technical}</pre>
             </details>
           ) : null}
         </div>
         <ActionBarPrimitive.Reload className="chat-failure-retry" type="button">
-          Retry
+          <Tr text={'Retry'} />
         </ActionBarPrimitive.Reload>
       </div>
     </MessagePrimitive.Error>

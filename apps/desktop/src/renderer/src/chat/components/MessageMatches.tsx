@@ -1,3 +1,5 @@
+import { t } from '../../store/locale'
+import { Tr } from '../../store/locale'
 /**
  * What the search box finds *inside* conversations.
  *
@@ -47,9 +49,11 @@ export function MessageMatches({
   if (words.length < SHORTEST || matches.length === 0) return null
 
   return (
-    <section aria-label="Messages" className="chat-session-group">
+    <section aria-label={t('Messages')} className="chat-session-group">
       <div className="chat-sessions-label">
-        <span>IN MESSAGES</span>
+        <span>
+          <Tr text={'IN MESSAGES'} />
+        </span>
         <span>{matches.length}</span>
       </div>
       <ul className="chat-session-list chat-message-matches">

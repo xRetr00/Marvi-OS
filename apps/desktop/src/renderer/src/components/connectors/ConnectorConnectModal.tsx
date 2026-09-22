@@ -1,3 +1,5 @@
+import { t } from '../../store/locale'
+import { Tr } from '../../store/locale'
 import { useEffect } from 'react'
 
 import type { ConnectorMeta } from '../../lib/connectors/connectorCatalog'
@@ -68,7 +70,7 @@ export function ConnectorConnectModal({
         role="dialog"
       >
         <button
-          aria-label="Close"
+          aria-label={t('Close')}
           className="connector-modal-close"
           onClick={onClose}
           type="button"
@@ -140,7 +142,7 @@ export function ConnectorConnectModal({
                 onClick={() => void flow.handleDisconnect(row.connectionId)}
                 type="button"
               >
-                Disconnect
+                <Tr text={'Disconnect'} />
               </button>
             </div>
           </>

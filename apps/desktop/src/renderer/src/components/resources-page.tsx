@@ -1,3 +1,5 @@
+import { t } from '../store/locale'
+import { Tr } from '../store/locale'
 /**
  * What Marvi is costing this machine, and what she was doing at the time.
  *
@@ -115,7 +117,11 @@ export function ResourcesPage(): React.JSX.Element {
     return (
       <section className="res-page">
         <p className="res-empty">
-          The Gateway is not answering. Nothing has been recorded yet, or it is not running.
+          <Tr
+            text={
+              'The Gateway is not answering. Nothing has been recorded yet, or it is not running.'
+            }
+          />
         </p>
       </section>
     )
@@ -125,7 +131,9 @@ export function ResourcesPage(): React.JSX.Element {
     <section className="res-page">
       <header className="res-head">
         <div>
-          <h1>Resources</h1>
+          <h1>
+            <Tr text={'Resources'} />
+          </h1>
           <p>
             {readings.length > 0
               ? `${readings.length} readings, oldest ${ago(readings[0].at)}`
@@ -167,7 +175,7 @@ function Holding({ latest }: { latest: ResourceReading }): React.JSX.Element {
         <Band
           detail={`${size(latest.ram_available_mb)} free of ${size(latest.ram_total_mb)}`}
           icon={<MemoryStick aria-hidden="true" />}
-          label="Memory she holds"
+          label={t('Memory she holds')}
           share={ramShare}
           value={size(latest.marvi_ram_mb)}
           warn={tight}
@@ -179,21 +187,21 @@ function Holding({ latest }: { latest: ResourceReading }): React.JSX.Element {
               : `${size(latest.vram_used_mb)} used of ${size(latest.vram_total_mb)}`
           }
           icon={<Zap aria-hidden="true" />}
-          label="Video memory she holds"
+          label={t('Video memory she holds')}
           share={vramShare}
           value={size(latest.marvi_vram_mb)}
         />
         <Band
           detail={`the machine as a whole is at ${Math.round(latest.cpu_percent)}%`}
           icon={<Cpu aria-hidden="true" />}
-          label="Processor"
+          label={t('Processor')}
           share={latest.processes.reduce((sum, one) => sum + one.cpu_percent, 0) / 100 / 8}
           value={`${Math.round(latest.processes.reduce((sum, one) => sum + one.cpu_percent, 0))}%`}
         />
         <Band
           detail={`${latest.disk_free_gb.toFixed(0)} GB free`}
           icon={<HardDrive aria-hidden="true" />}
-          label="Read from disk"
+          label={t('Read from disk')}
           share={0}
           value={size(latest.processes.reduce((sum, one) => sum + one.read_mb, 0))}
         />
@@ -242,17 +250,31 @@ function Where({
 }): React.JSX.Element {
   return (
     <section className="res-block">
-      <h2>Where it is going</h2>
+      <h2>
+        <Tr text={'Where it is going'} />
+      </h2>
       <div className="res-scroll">
         <table className="res-table">
           <thead>
             <tr>
-              <th>Process</th>
-              <th>Memory</th>
-              <th>Video</th>
-              <th>CPU</th>
-              <th>Read</th>
-              <th>Up</th>
+              <th>
+                <Tr text={'Process'} />
+              </th>
+              <th>
+                <Tr text={'Memory'} />
+              </th>
+              <th>
+                <Tr text={'Video'} />
+              </th>
+              <th>
+                <Tr text={'CPU'} />
+              </th>
+              <th>
+                <Tr text={'Read'} />
+              </th>
+              <th>
+                <Tr text={'Up'} />
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -260,7 +282,10 @@ function Where({
               <tr key={one.pid}>
                 <td>
                   <span className="res-role">{one.role}</span>
-                  <span className="res-pid">pid {one.pid}</span>
+                  <span className="res-pid">
+                    <Tr text={'pid'} after />
+                    {one.pid}
+                  </span>
                 </td>
                 <td>
                   {size(one.rss_mb)}
@@ -292,7 +317,9 @@ function Timeline({ readings }: { readings: ResourceReading[] }): React.JSX.Elem
 
   return (
     <section className="res-block">
-      <h2>Over time</h2>
+      <h2>
+        <Tr text={'Over time'} />
+      </h2>
       <div className="res-timeline">
         {shown.map((one) => (
           <span
@@ -334,17 +361,31 @@ function Timeline({ readings }: { readings: ResourceReading[] }): React.JSX.Elem
 function ByDoing({ phases }: { phases: ResourcePhase[] }): React.JSX.Element {
   return (
     <section className="res-block">
-      <h2>By what she was doing</h2>
+      <h2>
+        <Tr text={'By what she was doing'} />
+      </h2>
       <div className="res-scroll">
         <table className="res-table">
           <thead>
             <tr>
-              <th>Doing</th>
-              <th>Readings</th>
-              <th>Memory</th>
-              <th>Worst</th>
-              <th>Video</th>
-              <th>CPU</th>
+              <th>
+                <Tr text={'Doing'} />
+              </th>
+              <th>
+                <Tr text={'Readings'} />
+              </th>
+              <th>
+                <Tr text={'Memory'} />
+              </th>
+              <th>
+                <Tr text={'Worst'} />
+              </th>
+              <th>
+                <Tr text={'Video'} />
+              </th>
+              <th>
+                <Tr text={'CPU'} />
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -365,15 +406,31 @@ function ByDoing({ phases }: { phases: ResourcePhase[] }): React.JSX.Element {
       </div>
       <p className="res-note">
         <Activity aria-hidden="true" />
-        Readings are taken every thirty seconds, and immediately whenever what she is doing changes
-        — a call starting, a model loading, a game taking the machine. Those are the ones worth
-        reading.
+        <Tr
+          text={
+            'Readings are taken every thirty seconds, and immediately whenever what she is doing changes — a call starting, a model loading, a game taking the machine. Those are the ones worth reading.'
+          }
+          after
+        />
       </p>
       <p className="res-note">
         <Gauge aria-hidden="true" />
-        Video memory is only measured when a reading goes looking for it, which costs a Windows
-        performance counter. Press <strong>Read now</strong> for a current figure; a dash means that
-        reading did not ask, never that the answer was zero.
+        <Tr
+          text={
+            'Video memory is only measured when a reading goes looking for it, which costs a Windows performance counter. Press'
+          }
+          after
+        />
+        <strong>
+          <Tr text={'Read now'} />
+        </strong>{' '}
+        <Tr
+          text={
+            'for a current figure; a dash means that reading did not ask, never that the answer was zero.'
+          }
+          before
+          after
+        />
       </p>
     </section>
   )

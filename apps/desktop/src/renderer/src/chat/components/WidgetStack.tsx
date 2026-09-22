@@ -1,3 +1,4 @@
+import { Tr } from '../../store/locale'
 import type { ChatPart, ChatWidgetPart } from '../../../../shared/runtime'
 import { CommerceTravelCard } from './CommerceTravelCards'
 
@@ -56,7 +57,12 @@ function WidgetLabel({ children }: { children: string }): React.JSX.Element {
  * Saying so beats a captioned box with no body, which looks exactly like a
  * widget that failed to draw. */
 function EmptyWidget({ what }: { what: string }): React.JSX.Element {
-  return <p className="chat-widget-empty">No {what} to show.</p>
+  return (
+    <p className="chat-widget-empty">
+      <Tr text={'No'} after />
+      {what} <Tr text={'to show.'} before />
+    </p>
+  )
 }
 
 function Sources({ rows }: { rows: Item[]; title: string }): React.JSX.Element {
@@ -64,7 +70,9 @@ function Sources({ rows }: { rows: Item[]; title: string }): React.JSX.Element {
     <details className="chat-sources">
       <summary>
         <span className="chat-widget-glyph" aria-hidden="true" />
-        <strong>Sources</strong>
+        <strong>
+          <Tr text={'Sources'} />
+        </strong>
         <span className="chat-widget-count">{rows.length}</span>
         <span className="chat-sources-chevron" aria-hidden="true">
           ›
@@ -122,7 +130,11 @@ function Comparison({ rows, title }: { rows: Item[]; title: string }): React.JSX
               key={`${row.label}-${index}`}
             >
               <span>{row.label || `Option ${index + 1}`}</span>
-              {recommended ? <em>PICK</em> : null}
+              {recommended ? (
+                <em>
+                  <Tr text={'PICK'} />
+                </em>
+              ) : null}
               <strong>{row.value || row.status || '—'}</strong>
               {row.detail ? <small>{row.detail}</small> : null}
             </div>
@@ -231,7 +243,7 @@ function Details({
             <dd>
               {key === 'url' ? (
                 <a href={String(value)} rel="noreferrer noopener" target="_blank">
-                  Open source ↗
+                  <Tr text={'Open source ↗'} />
                 </a>
               ) : (
                 String(value)

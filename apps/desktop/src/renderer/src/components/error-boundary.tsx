@@ -1,3 +1,4 @@
+import { Tr } from '../store/locale'
 /**
  * The thing that stands between a render error and a black window.
  *
@@ -92,9 +93,15 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
     return (
       <div className="crash" role="alert">
         <div className="crash-card">
-          <h1 className="crash-title">Marvi hit a rendering error</h1>
+          <h1 className="crash-title">
+            <Tr text={'Marvi hit a rendering error'} />
+          </h1>
           <p className="crash-lead">
-            The window stopped drawing rather than showing you something wrong. The cause is below.
+            <Tr
+              text={
+                'The window stopped drawing rather than showing you something wrong. The cause is below.'
+              }
+            />
           </p>
           <pre className="crash-message">{error.message || String(error)}</pre>
           <div ref={this.detailsRef}>
@@ -103,7 +110,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
           </div>
           <div className="crash-actions">
             <button onClick={() => window.location.reload()} type="button">
-              RELOAD
+              <Tr text={'RELOAD'} />
             </button>
             <button onClick={() => void this.copy(error)} type="button">
               {COPY_LABEL[copied]}

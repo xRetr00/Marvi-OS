@@ -1,3 +1,5 @@
+import { t } from '../store/locale'
+import { Tr } from '../store/locale'
 import {
   ChevronLeft,
   ChevronRight,
@@ -161,7 +163,7 @@ function BrowserViewport({
       {/* Tab strip. A browser's tabs belong at the top of the browser, not in
           a list under a form -- this used to render `session.tabs` as an
           unordered list beneath the controls. */}
-      <div className="bx-tabs" role="tablist" aria-label="Browser tabs">
+      <div className="bx-tabs" role="tablist" aria-label={t('Browser tabs')}>
         {session.tabs.map((item) => (
           <div
             className={`bx-tab${item.id === (tab || session.tabs[0]?.id) ? ' is-on' : ''}`}
@@ -193,7 +195,7 @@ function BrowserViewport({
           </div>
         ))}
         <button
-          aria-label="New tab"
+          aria-label={t('New tab')}
           className="bx-icon"
           disabled={disabled}
           onClick={() => void navigate('new_tab')}
@@ -215,7 +217,7 @@ function BrowserViewport({
         }}
       >
         <button
-          aria-label="Back"
+          aria-label={t('Back')}
           className="bx-icon"
           disabled={disabled}
           onClick={() => void navigate('back')}
@@ -224,7 +226,7 @@ function BrowserViewport({
           <ChevronLeft aria-hidden="true" />
         </button>
         <button
-          aria-label="Forward"
+          aria-label={t('Forward')}
           className="bx-icon"
           disabled={disabled}
           onClick={() => void navigate('forward')}
@@ -233,7 +235,7 @@ function BrowserViewport({
           <ChevronRight aria-hidden="true" />
         </button>
         <button
-          aria-label="Reload"
+          aria-label={t('Reload')}
           className="bx-icon"
           disabled={disabled}
           onClick={() => void navigate('reload')}
@@ -242,7 +244,7 @@ function BrowserViewport({
           <RotateCw aria-hidden="true" />
         </button>
         <input
-          aria-label="Browser address"
+          aria-label={t('Browser address')}
           className="bx-url"
           disabled={disabled}
           onChange={(event) => setAddress(event.target.value)}
@@ -251,7 +253,7 @@ function BrowserViewport({
           value={session.state === 'private' ? '' : address}
         />
         <button
-          aria-label="Open in your own browser"
+          aria-label={t('Open in your own browser')}
           className="bx-icon"
           disabled={disabled || !address}
           onClick={() => void window.marvi.openExternal?.(address)}
@@ -267,7 +269,7 @@ function BrowserViewport({
         </p>
       ) : null}
 
-      <div aria-label="Embedded browser" className="browser-viewport" ref={area} />
+      <div aria-label={t('Embedded browser')} className="browser-viewport" ref={area} />
     </div>
   )
 }
@@ -346,7 +348,7 @@ export function BrowserPage({ onClose }: { onClose?: () => void } = {}): React.J
     <>
       <button
         aria-expanded={menuOpen}
-        aria-label="Browser menu"
+        aria-label={t('Browser menu')}
         className="bx-icon"
         onClick={() => setMenuOpen((open) => !open)}
         type="button"
@@ -354,7 +356,12 @@ export function BrowserPage({ onClose }: { onClose?: () => void } = {}): React.J
         <MoreVertical aria-hidden="true" />
       </button>
       {onClose ? (
-        <button aria-label="Close the browser" className="bx-icon" onClick={onClose} type="button">
+        <button
+          aria-label={t('Close the browser')}
+          className="bx-icon"
+          onClick={onClose}
+          type="button"
+        >
           <X aria-hidden="true" />
         </button>
       ) : null}
@@ -370,7 +377,9 @@ export function BrowserPage({ onClose }: { onClose?: () => void } = {}): React.J
       {live ? null : (
         <div className="bx-tabs">
           <span className="bx-tab is-on">
-            <span>New tab</span>
+            <span>
+              <Tr text={'New tab'} />
+            </span>
           </span>
           <span className="bx-gap" />
           {buttons}
@@ -385,7 +394,7 @@ export function BrowserPage({ onClose }: { onClose?: () => void } = {}): React.J
 
       {status?.private_input ? (
         <p className="bx-private" role="status">
-          Private input · Marvi paused. Type your password in the page, then Resume.
+          <Tr text={'Private input · Marvi paused. Type your password in the page, then Resume.'} />
         </p>
       ) : null}
 
@@ -411,20 +420,22 @@ export function BrowserPage({ onClose }: { onClose?: () => void } = {}): React.J
           }}
         >
           <input
-            aria-label="Website"
+            aria-label={t('Website')}
             onChange={(event) => setUrl(event.target.value)}
-            placeholder="Type a URL"
+            placeholder={t('Type a URL')}
             type="text"
             value={url}
           />
-          <button disabled={busy || !status}>Open</button>
+          <button disabled={busy || !status}>
+            <Tr text={'Open'} />
+          </button>
         </form>
       )}
 
       {menuOpen ? (
         <div className="bx-menu" role="menu">
           <label>
-            Profile
+            <Tr text={'Profile'} after />
             <select onChange={(event) => setProfile(event.target.value)} value={profile}>
               {(status?.profiles ?? [{ id: 'default', label: 'Personal' }]).map((one) => (
                 <option key={one.id} value={one.id}>
@@ -436,23 +447,23 @@ export function BrowserPage({ onClose }: { onClose?: () => void } = {}): React.J
           {live ? (
             <>
               <button onClick={() => control(live, 'show')} type="button">
-                Bring to front
+                <Tr text={'Bring to front'} />
               </button>
               <button onClick={() => control(live, 'pause')} type="button">
-                Take over
+                <Tr text={'Take over'} />
               </button>
               <button onClick={() => control(live, 'private')} type="button">
-                Private input
+                <Tr text={'Private input'} />
               </button>
               <button
                 disabled={!['private', 'paused', 'cancelled'].includes(live.state)}
                 onClick={() => control(live, 'resume')}
                 type="button"
               >
-                Resume
+                <Tr text={'Resume'} />
               </button>
               <button onClick={() => control(live, 'stop')} type="button">
-                Stop task
+                <Tr text={'Stop task'} />
               </button>
               <button
                 className="bx-danger"
@@ -462,7 +473,7 @@ export function BrowserPage({ onClose }: { onClose?: () => void } = {}): React.J
                 }}
                 type="button"
               >
-                Close browser
+                <Tr text={'Close browser'} />
               </button>
             </>
           ) : null}
@@ -481,7 +492,7 @@ export function BrowserPage({ onClose }: { onClose?: () => void } = {}): React.J
             }
             type="button"
           >
-            Import Chrome passwords…
+            <Tr text={'Import Chrome passwords…'} />
           </button>
           <button
             onClick={() =>
@@ -492,12 +503,15 @@ export function BrowserPage({ onClose }: { onClose?: () => void } = {}): React.J
             }
             type="button"
           >
-            Import cookies…
+            <Tr text={'Import cookies…'} />
           </button>
           {note ? <p className="bx-note">{note}</p> : null}
           <p className="bx-note">
-            For Chrome passwords, open Chrome Settings, Passwords, Export passwords, then pick that
-            file here. Logins stay in this profile when the browser closes.
+            <Tr
+              text={
+                'For Chrome passwords, open Chrome Settings, Passwords, Export passwords, then pick that file here. Logins stay in this profile when the browser closes.'
+              }
+            />
           </p>
         </div>
       ) : null}

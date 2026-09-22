@@ -1,3 +1,4 @@
+import { Tr } from '../../store/locale'
 /**
  * A round image with a fallback, on Radix's Avatar.
  *
@@ -55,7 +56,9 @@ export function MarviAvatar({ className }: { className?: string }): React.JSX.El
   return (
     <Avatar aria-hidden="true" className={classes('marvi-avatar', className)}>
       <AvatarImage alt="" src={marviLogo} />
-      <AvatarFallback delayMs={400}>M</AvatarFallback>
+      <AvatarFallback delayMs={400}>
+        <Tr text={'M'} />
+      </AvatarFallback>
     </Avatar>
   )
 }

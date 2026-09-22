@@ -1,3 +1,5 @@
+import { t } from '../store/locale'
+import { Tr } from '../store/locale'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Activity, BookOpenText, CalendarDays, RefreshCw, Server } from 'lucide-react'
 
@@ -46,7 +48,7 @@ function UsageCalendar({ page }: { page: UsagePage }): React.JSX.Element {
 
   return (
     <div className="usage-calendar">
-      <div className="usage-range-tabs" role="tablist" aria-label="Usage time range">
+      <div className="usage-range-tabs" role="tablist" aria-label={t('Usage time range')}>
         {RANGES.map((item) => (
           <button
             aria-selected={range === item.id}
@@ -79,9 +81,15 @@ function UsageCalendar({ page }: { page: UsagePage }): React.JSX.Element {
             </div>
             <div className="usage-heatmap-body">
               <div className="usage-day-axis" aria-hidden="true">
-                <span>Mon</span>
-                <span>Wed</span>
-                <span>Fri</span>
+                <span>
+                  <Tr text={'Mon'} />
+                </span>
+                <span>
+                  <Tr text={'Wed'} />
+                </span>
+                <span>
+                  <Tr text={'Fri'} />
+                </span>
               </div>
               <div className="usage-calendar-grid is-calendar">
                 {cells.map((cell) => (
@@ -120,22 +128,29 @@ function UsageCalendar({ page }: { page: UsagePage }): React.JSX.Element {
       <div className="usage-calendar-footer">
         <div>
           <strong>{count(total)}</strong>
-          <span>tokens</span>
+          <span>
+            <Tr text={'tokens'} />
+          </span>
           <strong>{active.length}</strong>
-          <span>active {calendar ? 'days' : 'hours'}</span>
+          <span>
+            <Tr text={'active'} after />
+            {calendar ? 'days' : 'hours'}
+          </span>
           {peak ? (
             <>
               <strong>{count(peak.billable)}</strong>
-              <span>peak</span>
+              <span>
+                <Tr text={'peak'} />
+              </span>
             </>
           ) : null}
         </div>
         <div className="usage-calendar-legend" aria-hidden="true">
-          Less{' '}
+          <Tr text={'Less'} />{' '}
           {[0, 1, 2, 3, 4].map((level) => (
             <i className={`level-${level}`} key={level} />
           ))}{' '}
-          More
+          <Tr text={'More'} after />
         </div>
       </div>
       <div className="usage-token-tale" aria-live="polite">
@@ -184,10 +199,24 @@ function UsageMetric({
 
 function AccountValue({ page }: { page: UsagePage['providers'][number] }): React.JSX.Element {
   const account = page.account
-  if (page.accessPath === 'local') return <strong>LOCAL / NO CHARGE</strong>
-  if (!account) return <strong>REQUEST COUNTERS ONLY</strong>
+  if (page.accessPath === 'local')
+    return (
+      <strong>
+        <Tr text={'LOCAL / NO CHARGE'} />
+      </strong>
+    )
+  if (!account)
+    return (
+      <strong>
+        <Tr text={'REQUEST COUNTERS ONLY'} />
+      </strong>
+    )
   if (account.state === 'error')
-    return <strong className="usage-error">ACCOUNT API UNAVAILABLE</strong>
+    return (
+      <strong className="usage-error">
+        <Tr text={'ACCOUNT API UNAVAILABLE'} />
+      </strong>
+    )
   if (account.balances?.length) {
     return (
       <strong>
@@ -241,8 +270,10 @@ export function UsagePanel(): React.JSX.Element {
   return (
     <ControlPage
       className="usage-page"
-      description="Provider-reported and locally recorded model usage. Message content is never stored here."
-      title="Usage"
+      description={t(
+        'Provider-reported and locally recorded model usage. Message content is never stored here.'
+      )}
+      title={t('Usage')}
     >
       {loading ? (
         <ProcessingCard
@@ -251,7 +282,7 @@ export function UsagePanel(): React.JSX.Element {
             { label: 'Local ledger', state: 'active' },
             { label: 'Provider accounts', state: 'waiting' }
           ]}
-          title="Collecting usage"
+          title={t('Collecting usage')}
         />
       ) : error ? (
         <p className="notice notice-warn">{error}</p>
@@ -259,7 +290,7 @@ export function UsagePanel(): React.JSX.Element {
         <>
           <ControlSection
             action={
-              <UiTooltip label="Refresh provider account totals">
+              <UiTooltip label={t('Refresh provider account totals')}>
                 <ControlButton disabled={refreshing} onClick={() => void load(true)}>
                   <RefreshCw aria-hidden="true" className={refreshing ? 'is-spinning' : ''} />
                   {refreshing ? 'Refreshing' : 'Refresh'}
@@ -267,30 +298,42 @@ export function UsagePanel(): React.JSX.Element {
               </UiTooltip>
             }
             icon={Activity}
-            title="Totals"
+            title={t('Totals')}
           >
             <div className="usage-metrics">
               <UsageMetric
-                label="Billable"
+                label={t('Billable')}
                 value={count(totals.billable)}
                 note="fresh input + output"
               />
-              <UsageMetric label="Input" value={count(totals.input)} note="all prompt tokens" />
-              <UsageMetric label="Output" value={count(totals.output)} note="generated tokens" />
-              <UsageMetric label="Cache" value={count(totals.cachedInput)} note="reused input" />
+              <UsageMetric
+                label={t('Input')}
+                value={count(totals.input)}
+                note="all prompt tokens"
+              />
+              <UsageMetric
+                label={t('Output')}
+                value={count(totals.output)}
+                note="generated tokens"
+              />
+              <UsageMetric
+                label={t('Cache')}
+                value={count(totals.cachedInput)}
+                note="reused input"
+              />
             </div>
           </ControlSection>
           <ControlSection
-            description="Daily and hourly activity from the local usage ledger. Times are UTC."
+            description={t('Daily and hourly activity from the local usage ledger. Times are UTC.')}
             icon={CalendarDays}
-            title="Activity"
+            title={t('Activity')}
           >
             <UsageCalendar page={page} />
           </ControlSection>
           <ControlSection
-            description="Account totals never replace local counters."
+            description={t('Account totals never replace local counters.')}
             icon={Server}
-            title="Provider sources"
+            title={t('Provider sources')}
           >
             <div className="usage-provider-list">
               {page.providers
@@ -311,7 +354,9 @@ export function UsagePanel(): React.JSX.Element {
                     </div>
                     <div>
                       <AccountValue page={provider} />
-                      <small>{count(provider.usage.billable)} Marvi tokens</small>
+                      <small>
+                        {count(provider.usage.billable)} <Tr text={'Marvi tokens'} before />
+                      </small>
                     </div>
                   </article>
                 ))}

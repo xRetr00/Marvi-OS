@@ -1,3 +1,5 @@
+import { t } from '../../store/locale'
+import { Tr } from '../../store/locale'
 import type { ChatWidgetPart } from '../../../../shared/runtime'
 
 type Data = Record<string, unknown>
@@ -28,7 +30,7 @@ function source(url: string): React.JSX.Element | null {
       return null
     return (
       <a href={parsed.href} rel="noopener noreferrer" target="_blank">
-        View source ↗
+        <Tr text={'View source ↗'} />
       </a>
     )
   } catch {
@@ -92,12 +94,12 @@ export function CommerceTravelCard({ widget }: { widget: ChatWidgetPart }): Reac
         </strong>
         <LineItems data={data} />
         <dl className="chat-transaction-facts">
-          <Field label="Subtotal" value={value(data, 'subtotal')} />
-          <Field label="Tax" value={value(data, 'tax')} />
-          <Field label="Total" value={value(data, 'total')} />
-          <Field label="Order" value={value(data, 'order_id')} />
-          <Field label="Date" value={value(data, 'date')} />
-          <Field label="Delivery" value={value(data, 'delivery')} />
+          <Field label={t('Subtotal')} value={value(data, 'subtotal')} />
+          <Field label={t('Tax')} value={value(data, 'tax')} />
+          <Field label={t('Total')} value={value(data, 'total')} />
+          <Field label={t('Order')} value={value(data, 'order_id')} />
+          <Field label={t('Date')} value={value(data, 'date')} />
+          <Field label={t('Delivery')} value={value(data, 'delivery')} />
         </dl>
       </Card>
     )
@@ -106,10 +108,10 @@ export function CommerceTravelCard({ widget }: { widget: ChatWidgetPart }): Reac
       <Card widget={widget}>
         <strong className="chat-transaction-title">{value(data, 'status')}</strong>
         <dl className="chat-transaction-facts">
-          <Field label="Order" value={value(data, 'order_id')} />
-          <Field label="Merchant" value={value(data, 'merchant')} />
-          <Field label="Expected" value={value(data, 'eta')} />
-          <Field label="Updated" value={value(data, 'updated_at')} />
+          <Field label={t('Order')} value={value(data, 'order_id')} />
+          <Field label={t('Merchant')} value={value(data, 'merchant')} />
+          <Field label={t('Expected')} value={value(data, 'eta')} />
+          <Field label={t('Updated')} value={value(data, 'updated_at')} />
         </dl>
         <ol className="chat-transaction-events">
           {list(data, 'events').map((event, index) => (
@@ -127,12 +129,12 @@ export function CommerceTravelCard({ widget }: { widget: ChatWidgetPart }): Reac
       <Card widget={widget}>
         <strong className="chat-transaction-title">{value(data, 'venue')}</strong>
         <dl className="chat-transaction-facts">
-          <Field label="Date" value={value(data, 'date')} />
-          <Field label="Time" value={value(data, 'time')} />
-          <Field label="Party" value={value(data, 'party_size')} />
-          <Field label="Status" value={value(data, 'status')} />
-          <Field label="Reference" value={value(data, 'reference')} />
-          <Field label="Address" value={value(data, 'address')} />
+          <Field label={t('Date')} value={value(data, 'date')} />
+          <Field label={t('Time')} value={value(data, 'time')} />
+          <Field label={t('Party')} value={value(data, 'party_size')} />
+          <Field label={t('Status')} value={value(data, 'status')} />
+          <Field label={t('Reference')} value={value(data, 'reference')} />
+          <Field label={t('Address')} value={value(data, 'address')} />
         </dl>
       </Card>
     )
@@ -142,9 +144,9 @@ export function CommerceTravelCard({ widget }: { widget: ChatWidgetPart }): Reac
         <strong className="chat-transaction-title">{value(data, 'name')}</strong>
         <p className="chat-transaction-subtitle">{value(data, 'location')}</p>
         <dl className="chat-transaction-facts">
-          <Field label="Dates" value={value(data, 'dates')} />
-          <Field label="Price" value={value(data, 'price')} />
-          <Field label="Rating" value={value(data, 'rating')} />
+          <Field label={t('Dates')} value={value(data, 'dates')} />
+          <Field label={t('Price')} value={value(data, 'price')} />
+          <Field label={t('Rating')} value={value(data, 'rating')} />
         </dl>
         {value(data, 'detail') ? (
           <p className="chat-transaction-subtitle">{value(data, 'detail')}</p>
@@ -162,12 +164,12 @@ export function CommerceTravelCard({ widget }: { widget: ChatWidgetPart }): Reac
         <span>{value(data, 'destination')}</span>
       </p>
       <dl className="chat-transaction-facts">
-        <Field label="Airline" value={value(data, 'airline')} />
-        <Field label="Departure" value={value(data, 'departure')} />
-        <Field label="Arrival" value={value(data, 'arrival')} />
-        <Field label="Gate" value={value(data, 'gate')} />
-        <Field label="Terminal" value={value(data, 'terminal')} />
-        <Field label="Updated" value={value(data, 'updated_at')} />
+        <Field label={t('Airline')} value={value(data, 'airline')} />
+        <Field label={t('Departure')} value={value(data, 'departure')} />
+        <Field label={t('Arrival')} value={value(data, 'arrival')} />
+        <Field label={t('Gate')} value={value(data, 'gate')} />
+        <Field label={t('Terminal')} value={value(data, 'terminal')} />
+        <Field label={t('Updated')} value={value(data, 'updated_at')} />
       </dl>
     </Card>
   )

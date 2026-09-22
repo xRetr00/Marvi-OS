@@ -1,3 +1,5 @@
+import { Tr } from '../../store/locale'
+import { t } from '../../store/locale'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link2 } from 'lucide-react'
 
@@ -93,30 +95,30 @@ export function ConnectorsPanel(): React.JSX.Element {
   return (
     <ControlPage
       className="capabilities-page"
-      description="Authorize third-party services so Marvi can read and act on your behalf."
-      title="Connectors"
+      description={t('Authorize third-party services so Marvi can read and act on your behalf.')}
+      title={t('Connectors')}
     >
       <ControlSection
         action={
           loaded ? (
             <ControlPill tone={connectedCount > 0 ? 'ready' : 'neutral'}>
-              {connectedCount} connected
+              {connectedCount} <Tr text={'connected'} before after />
             </ControlPill>
           ) : undefined
         }
         icon={Link2}
-        title="Connect a service"
+        title={t('Connect a service')}
       >
         <div className="capability-toolbar">
           <input
-            aria-label="Search connectors"
+            aria-label={t('Search connectors')}
             className="capability-search"
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search connectors…"
+            placeholder={t('Search connectors…')}
             type="search"
             value={query}
           />
-          <div className="capability-chips" role="group" aria-label="Filter by category">
+          <div className="capability-chips" role="group" aria-label={t('Filter by category')}>
             {CHIPS.map((option) => (
               <button
                 aria-pressed={chip === option}
@@ -139,9 +141,11 @@ export function ConnectorsPanel(): React.JSX.Element {
         {!available && loaded ? (
           <div className="connector-setup">
             <ControlEmpty
-              description="Connectors need a Composio API key. Paste one below to turn the catalog on; it is stored locally beside your model provider keys and never sent to a model."
+              description={t(
+                'Connectors need a Composio API key. Paste one below to turn the catalog on; it is stored locally beside your model provider keys and never sent to a model.'
+              )}
               icon={Link2}
-              title="Connector service unavailable"
+              title={t('Connector service unavailable')}
             />
             <form
               className="connector-setup-form"
@@ -151,12 +155,12 @@ export function ConnectorsPanel(): React.JSX.Element {
               }}
             >
               <input
-                aria-label="Composio API key"
+                aria-label={t('Composio API key')}
                 autoComplete="off"
                 className="control-input"
                 disabled={saving}
                 onChange={(event) => setKey(event.target.value)}
-                placeholder="Composio API key"
+                placeholder={t('Composio API key')}
                 spellCheck={false}
                 type="password"
                 value={key}
@@ -171,8 +175,8 @@ export function ConnectorsPanel(): React.JSX.Element {
 
         {visible.length === 0 ? (
           <ControlEmpty
-            description="Try a different search or category."
-            title="No connectors found"
+            description={t('Try a different search or category.')}
+            title={t('No connectors found')}
           />
         ) : (
           <div className="connector-grid">

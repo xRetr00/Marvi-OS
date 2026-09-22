@@ -1,3 +1,5 @@
+import { t } from '../store/locale'
+import { Tr } from '../store/locale'
 /**
  * How sure the listener has to be before it counts as her name — as a number,
  * next to the evidence for choosing one.
@@ -63,7 +65,9 @@ export function WakeConfidence({
   return (
     <div className="wake-confidence">
       <div className="wake-confidence-row">
-        <label htmlFor="wake-threshold">Confidence needed</label>
+        <label htmlFor="wake-threshold">
+          <Tr text={'Confidence needed'} />
+        </label>
         <input
           aria-describedby="wake-threshold-help"
           className={usable ? 'wake-threshold' : 'wake-threshold is-bad'}
@@ -79,7 +83,7 @@ export function WakeConfidence({
           value={typed}
         />
         <button className="wake-threshold-save" disabled={!changed} onClick={save} type="button">
-          Save
+          <Tr text={'Save'} />
         </button>
       </div>
       <p className="wake-confidence-help" id="wake-threshold-help">
@@ -89,8 +93,9 @@ export function WakeConfidence({
       </p>
       {highest > 0 ? (
         <p className="wake-confidence-help">
-          The loudest false alarm you can see below scored {readable(highest)}. A threshold above
-          that would have stopped it.
+          <Tr text={'The loudest false alarm you can see below scored'} after />
+          {readable(highest)}
+          <Tr text={'. A threshold above that would have stopped it.'} after />
         </p>
       ) : null}
       <DataStream
@@ -102,7 +107,7 @@ export function WakeConfidence({
         entries={asEntries(recent, threshold)}
         maxVisible={6}
         streaming={false}
-        title="Wake detections"
+        title={t('Wake detections')}
       />
     </div>
   )

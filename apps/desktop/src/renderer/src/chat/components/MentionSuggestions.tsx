@@ -1,3 +1,4 @@
+import { t } from '../../store/locale'
 /**
  * Workspace files matching the `@…` being typed.
  *
@@ -47,7 +48,7 @@ export function MentionSuggestions({
   if (!mention || found.length === 0) return null
 
   return (
-    <ul className="chat-mentions" aria-label="Workspace files">
+    <ul className="chat-mentions" aria-label={t('Workspace files')}>
       {found.map((path) => (
         <li key={path}>
           <button

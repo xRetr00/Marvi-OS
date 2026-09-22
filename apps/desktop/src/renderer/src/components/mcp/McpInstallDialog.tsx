@@ -1,3 +1,5 @@
+import { t } from '../../store/locale'
+import { Tr } from '../../store/locale'
 import { useState } from 'react'
 
 import { AbstractIcon } from '../abstract-icon'
@@ -54,7 +56,7 @@ export function McpInstallDialog({
         role="dialog"
       >
         <button
-          aria-label="Close"
+          aria-label={t('Close')}
           className="connector-modal-close"
           onClick={onClose}
           type="button"
@@ -72,7 +74,9 @@ export function McpInstallDialog({
         {error ? <p className="connector-required-field-error">{error}</p> : null}
 
         <div className="connector-required-field">
-          <label>Environment variables (optional)</label>
+          <label>
+            <Tr text={'Environment variables (optional)'} />
+          </label>
           {rows.map((row, index) => (
             <div className="connector-required-field-input" key={index}>
               <input
@@ -81,7 +85,7 @@ export function McpInstallDialog({
                   next[index] = { ...next[index], key: event.target.value }
                   setRows(next)
                 }}
-                placeholder="KEY"
+                placeholder={t('KEY')}
                 type="text"
                 value={row.key}
               />
@@ -91,7 +95,7 @@ export function McpInstallDialog({
                   next[index] = { ...next[index], value: event.target.value }
                   setRows(next)
                 }}
-                placeholder="value"
+                placeholder={t('value')}
                 type="text"
                 value={row.value}
               />
@@ -102,7 +106,7 @@ export function McpInstallDialog({
             onClick={() => setRows([...rows, { key: '', value: '' }])}
             type="button"
           >
-            Add variable
+            <Tr text={'Add variable'} />
           </button>
         </div>
 

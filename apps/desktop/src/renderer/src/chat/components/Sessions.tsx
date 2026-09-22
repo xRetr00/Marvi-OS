@@ -1,3 +1,4 @@
+import { Tr } from '../../store/locale'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import TelegramLogo from '@thesvg/react/telegram'
@@ -143,7 +144,9 @@ export function Sessions({
           <button className="chat-sidebar-home" type="button" onClick={onExit}>
             <AbstractIcon name="back" size={14} />
             <span>
-              <strong>MARVI</strong>
+              <strong>
+                <Tr text={'MARVI'} />
+              </strong>
               <small>{t('Chat', locale)}</small>
             </span>
           </button>
@@ -196,7 +199,7 @@ export function Sessions({
             <div className="chat-sessions-label">
               <span className="chat-sessions-channel">
                 <TelegramLogo aria-hidden="true" className="chat-session-logo" />
-                TELEGRAM
+                <Tr text={'TELEGRAM'} after />
               </span>
               <span>{formatNumber(telegram.length, locale)}</span>
             </div>

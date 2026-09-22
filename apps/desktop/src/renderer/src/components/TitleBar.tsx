@@ -1,3 +1,5 @@
+import { t } from '../store/locale'
+import { Tr } from '../store/locale'
 /**
  * Compact hidden title bar. Electron owns the native Windows window
  * controls; this renderer strip owns only the page title and app action.
@@ -107,9 +109,9 @@ export function TitleBar({
           </UiTooltip>
         ) : null}
         <LowResourceButton />
-        <UiTooltip label="Keyboard shortcuts" side="bottom">
+        <UiTooltip label={t('Keyboard shortcuts')} side="bottom">
           <button
-            aria-label="Keyboard shortcuts"
+            aria-label={t('Keyboard shortcuts')}
             className="titlebar-control hotkeys"
             onClick={() => {
               haptic('tap')
@@ -133,19 +135,19 @@ export function TitleBar({
         </UiTooltip>
         <GuardedLifecycleButton
           icon={RotateCcw}
-          label="Restart Marvi and all services"
+          label={t('Restart Marvi and all services')}
           onConfirm={onRestart}
           tone="restart"
         />
         <GuardedLifecycleButton
           icon={Power}
-          label="Shut down Marvi and all services"
+          label={t('Shut down Marvi and all services')}
           onConfirm={onShutdown}
           tone="shutdown"
         />
-        <UiTooltip label="Open settings" side="bottom">
+        <UiTooltip label={t('Open settings')} side="bottom">
           <button
-            aria-label="Settings"
+            aria-label={t('Settings')}
             className="titlebar-control settings"
             onClick={() => {
               haptic('tap')
@@ -276,7 +278,7 @@ function LowResourceButton(): React.JSX.Element {
       >
         <button
           aria-expanded={explaining}
-          aria-label="Low-resource mode"
+          aria-label={t('Low-resource mode')}
           aria-pressed={on}
           className={`titlebar-control lowres${on ? ' is-on' : ''}`}
           onClick={() => {
@@ -290,19 +292,26 @@ function LowResourceButton(): React.JSX.Element {
       </UiTooltip>
 
       {explaining ? (
-        <div className="lowres-card" role="dialog" aria-label="Low-resource mode">
+        <div className="lowres-card" role="dialog" aria-label={t('Low-resource mode')}>
           <header>
-            <h3>Low-resource mode</h3>
+            <h3>
+              <Tr text={'Low-resource mode'} />
+            </h3>
             <span className={`lowres-pill${on ? ' is-on' : ''}`}>{on ? 'On' : 'Off'}</span>
           </header>
           <p>
-            Marvi gets out of the way of whatever else is using this machine. She hands back the
-            speech models she is holding on the graphics card, slows the room camera right down, and
-            stops thinking out loud unless it matters.
+            <Tr
+              text={
+                'Marvi gets out of the way of whatever else is using this machine. She hands back the speech models she is holding on the graphics card, slows the room camera right down, and stops thinking out loud unless it matters.'
+              }
+            />
           </p>
           <p className="lowres-note">
-            She still talks. Announcements keep working, so you hear anything worth hearing while
-            you are busy.
+            <Tr
+              text={
+                'She still talks. Announcements keep working, so you hear anything worth hearing while you are busy.'
+              }
+            />
           </p>
           <p className="lowres-why">
             {automatic
@@ -320,7 +329,9 @@ function LowResourceButton(): React.JSX.Element {
             {byHand ? 'Turn it off' : 'Turn it on'}
           </button>
           {automatic && !byHand ? (
-            <p className="lowres-foot">A game has it on regardless; this adds to that.</p>
+            <p className="lowres-foot">
+              <Tr text={'A game has it on regardless; this adds to that.'} />
+            </p>
           ) : null}
         </div>
       ) : null}

@@ -1,3 +1,4 @@
+import { Tr } from '../../store/locale'
 /**
  * Workflows: the two halves of "Marvi did something without me sitting there".
  *
@@ -15,10 +16,15 @@ export function WorkflowsPage(): React.JSX.Element {
     <div className="wf-page">
       <header className="cron-head">
         <div>
-          <h2>Workflows</h2>
+          <h2>
+            <Tr text={'Workflows'} />
+          </h2>
           <p>
-            Rules that set work off, and the board of what that work became. Nothing here runs
-            outside the ordinary tool path: a sensitive action still asks you first.
+            <Tr
+              text={
+                'Rules that set work off, and the board of what that work became. Nothing here runs outside the ordinary tool path: a sensitive action still asks you first.'
+              }
+            />
           </p>
         </div>
       </header>

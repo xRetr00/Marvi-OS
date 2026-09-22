@@ -1,3 +1,5 @@
+import { t } from '../../store/locale'
+import { Tr } from '../../store/locale'
 /**
  * Rules: when X happens, do Y. Written here, never switched on by Marvi.
  *
@@ -76,10 +78,15 @@ export function AutomationsPanel(): React.JSX.Element {
     <section className="wf-rules">
       <header className="wf-head">
         <div>
-          <h3>Rules</h3>
+          <h3>
+            <Tr text={'Rules'} />
+          </h3>
           <p>
-            When something happens, do one thing — matched exactly, with no model deciding whether
-            today is different. Actions still go through confirmation.
+            <Tr
+              text={
+                'When something happens, do one thing — matched exactly, with no model deciding whether today is different. Actions still go through confirmation.'
+              }
+            />
           </p>
         </div>
         <button className="cron-new" onClick={() => setOpen(!open)} type="button">
@@ -91,8 +98,9 @@ export function AutomationsPanel(): React.JSX.Element {
       {proposed.length > 0 ? (
         <p className="wf-proposed">
           <Sparkles aria-hidden="true" size={12} />
-          Marvi suggested {proposed.length === 1 ? 'a rule' : `${proposed.length} rules`}. They
-          arrive switched off — nothing happens until you turn one on.
+          <Tr text={'Marvi suggested'} after />
+          {proposed.length === 1 ? 'a rule' : `${proposed.length} rules`}
+          <Tr text={'. They arrive switched off — nothing happens until you turn one on.'} after />
         </p>
       ) : null}
 
@@ -123,7 +131,8 @@ export function AutomationsPanel(): React.JSX.Element {
               <div className="wf-rule-words">
                 <strong>{rule.name}</strong>
                 <span className="wf-rule-when">
-                  when {TRIGGERS[rule.trigger] ?? rule.trigger}
+                  <Tr text={'when'} after />
+                  {TRIGGERS[rule.trigger] ?? rule.trigger}
                   {Object.keys(rule.match).length
                     ? ` · if ${Object.entries(rule.match)
                         .map(([field, value]) => `${field} is ${JSON.stringify(value)}`)
@@ -146,7 +155,7 @@ export function AutomationsPanel(): React.JSX.Element {
                 aria-label={`Dry run ${rule.name}`}
                 disabled={busy === rule.id}
                 onClick={() => void dryRun(rule)}
-                title="Fire it once, by hand, with an empty event"
+                title={t('Fire it once, by hand, with an empty event')}
                 type="button"
               >
                 <Play aria-hidden="true" size={12} />
@@ -164,7 +173,11 @@ export function AutomationsPanel(): React.JSX.Element {
         ))}
         {rules.length === 0 && !open ? (
           <li className="wf-empty-row">
-            No rules yet. A rule is the one thing here Marvi cannot switch on for herself.
+            <Tr
+              text={
+                'No rules yet. A rule is the one thing here Marvi cannot switch on for herself.'
+              }
+            />
           </li>
         ) : null}
       </ul>
@@ -234,15 +247,19 @@ function RuleForm({
   return (
     <div className="wf-form">
       <label>
-        <span>Name</span>
+        <span>
+          <Tr text={'Name'} />
+        </span>
         <input
           onChange={(event) => setName(event.target.value)}
-          placeholder="Warm light when I sit down after six"
+          placeholder={t('Warm light when I sit down after six')}
           value={name}
         />
       </label>
       <label>
-        <span>When</span>
+        <span>
+          <Tr text={'When'} />
+        </span>
         <select onChange={(event) => setTrigger(event.target.value)} value={trigger}>
           {(triggers.length ? triggers : Object.keys(TRIGGERS)).map((one) => (
             <option key={one} value={one}>
@@ -252,38 +269,52 @@ function RuleForm({
         </select>
       </label>
       <label>
-        <span>If</span>
+        <span>
+          <Tr text={'If'} />
+        </span>
         <input
           onChange={(event) => setMatch(event.target.value)}
           placeholder={'{"kind": "presence"}'}
           value={match}
         />
-        <small>Plain matching against the event&apos;s own fields. Empty means every time.</small>
+        <small>
+          <Tr text="Plain matching against the event's own fields. Empty means every time." />
+        </small>
       </label>
       <label>
-        <span>Then</span>
+        <span>
+          <Tr text={'Then'} />
+        </span>
         <input
           onChange={(event) => setAction(event.target.value)}
-          placeholder="room_set_light"
+          placeholder={t('room_set_light')}
           value={action}
         />
-        <small>A Gateway tool by name. A sensitive one still asks you first.</small>
+        <small>
+          <Tr text={'A Gateway tool by name. A sensitive one still asks you first.'} />
+        </small>
       </label>
       <label>
-        <span>With</span>
+        <span>
+          <Tr text={'With'} />
+        </span>
         <input
           onChange={(event) => setArgs(event.target.value)}
           placeholder={'{"state": "warm"}'}
           value={args}
         />
         <small>
-          <code>{'{field}'}</code> is filled from the event — into a slot you wrote, never as a new
-          one.
+          <code>{'{field}'}</code>{' '}
+          <Tr
+            text={'is filled from the event — into a slot you wrote, never as a new one.'}
+            before
+            after
+          />
         </small>
       </label>
       {error ? <p className="cron-error">{error}</p> : null}
       <button className="wf-save" onClick={() => void save()} type="button">
-        Save rule
+        <Tr text={'Save rule'} />
       </button>
     </div>
   )

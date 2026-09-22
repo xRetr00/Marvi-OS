@@ -18,16 +18,27 @@ Evidence: desktop typecheck, `electron-vite build`, 607 desktop tests, and 21
 Gateway remembering tests passed on 2026-09-22. RTL visual review remains for
 Milestone 3.
 
-## Milestone 2 — Complete copy and formats
+## Milestone 2 — Static renderer copy
 
-- [ ] Translate reachable renderer UI copy and preserve English fallback.
+- [x] Extract static JSX text and accessible attributes across renderer pages.
+- [x] Translate them in the Arabic catalogue and preserve English fallback.
+- [x] Add a source audit that fails when an extracted key has no Arabic entry.
+- [x] Keep code and technical identifiers unchanged where translation would
+      corrupt them.
+
+Evidence: source audit covers 977 Arabic catalogue entries, including 399
+standalone JSX labels, 434 static attributes, and 148 mixed-content fragments.
+On 2026-09-22, desktop typecheck, renderer build, `git diff --check`, and all
+609 desktop tests passed.
+
+## Milestone 3 — Dynamic copy and formats
+
+- [ ] Localize dynamic renderer status and error copy.
 - [ ] Localize Gateway-written text displayed in the app.
 - [ ] Route remaining date, number, duration, and relative-time UI through the
       interface locale.
-- [ ] Add coverage that detects untranslated catalogue entries and reachability
-      gaps.
 
-## Milestone 3 — Direction and acceptance
+## Milestone 4 — Direction and acceptance
 
 - [ ] Isolate paths, URLs, model names, and identifiers in mixed Arabic prose.
 - [ ] Review control center, settings, Chat, and Island visually in RTL.

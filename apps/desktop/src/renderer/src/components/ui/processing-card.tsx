@@ -1,3 +1,4 @@
+import { Tr } from '../../store/locale'
 import { AbstractIcon, type AbstractIconName } from '../abstract-icon'
 
 export interface ProcessingStage {
@@ -34,7 +35,7 @@ export function ProcessingCard({
       </div>
       <div className="processing-copy">
         <span className="processing-kicker">
-          <AbstractIcon name={icon} size={15} /> PROCESSING
+          <AbstractIcon name={icon} size={15} /> <Tr text={'PROCESSING'} before after />
         </span>
         <strong>{title}</strong>
         <small>{detail}</small>

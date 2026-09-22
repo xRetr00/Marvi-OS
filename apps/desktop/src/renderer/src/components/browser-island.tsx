@@ -1,3 +1,4 @@
+import { Tr } from '../store/locale'
 import { useState } from 'react'
 import type { BrowserCommand, BrowserSession } from '../../../shared/browser'
 
@@ -35,7 +36,7 @@ export function BrowserIsland({ session }: { session: BrowserSession }): React.J
               void control('resume')
             }}
           >
-            RESUME
+            <Tr text={'RESUME'} />
           </button>
         ) : (
           <button
@@ -44,7 +45,7 @@ export function BrowserIsland({ session }: { session: BrowserSession }): React.J
               void control('private')
             }}
           >
-            PRIVATE INPUT
+            <Tr text={'PRIVATE INPUT'} />
           </button>
         )}
         <button
@@ -53,7 +54,7 @@ export function BrowserIsland({ session }: { session: BrowserSession }): React.J
             void control('stop')
           }}
         >
-          STOP
+          <Tr text={'STOP'} />
         </button>
       </div>
     </div>

@@ -1,3 +1,5 @@
+import { t } from '../store/locale'
+import { Tr } from '../store/locale'
 /**
  * The Mind, as something you can look into rather than a list of counters.
  *
@@ -117,7 +119,7 @@ function MindDiagram({
 
   return (
     <svg
-      aria-label="How a signal travels through the mind"
+      aria-label={t('How a signal travels through the mind')}
       className="mind-diagram"
       role="img"
       viewBox={`0 0 720 ${height}`}
@@ -184,7 +186,7 @@ function MindDiagram({
       </text>
       {waiting > 0 && (
         <text className="mind-diagram-waiting" textAnchor="middle" x="300" y={height / 2 + 38}>
-          {waiting} waiting
+          {waiting} <Tr text={'waiting'} before after />
         </text>
       )}
 
@@ -272,10 +274,15 @@ export function MindPage(): React.JSX.Element {
     <div className="mind-page">
       <header className="mind-head">
         <div className="mind-head-copy">
-          <h2>Mind</h2>
+          <h2>
+            <Tr text={'Mind'} />
+          </h2>
           <p>
-            What reaches her, what stops it, and what is still waiting to be said. Everything on
-            this page is live.
+            <Tr
+              text={
+                'What reaches her, what stops it, and what is still waiting to be said. Everything on this page is live.'
+              }
+            />
           </p>
         </div>
         <button className="mind-toggle" disabled={busy} onClick={() => void toggle()} type="button">
@@ -297,7 +304,7 @@ export function MindPage(): React.JSX.Element {
         <span className="mind-state-why">{quiet || 'nothing is holding her back right now'}</span>
         <span className="mind-state-meta">
           {status?.running ? 'scheduler running' : 'scheduler stopped'} ·{' '}
-          {status?.pending_events ?? 0} unread events
+          {status?.pending_events ?? 0} <Tr text={'unread events'} before after />
         </span>
       </div>
 
@@ -313,10 +320,12 @@ export function MindPage(): React.JSX.Element {
       <div className="mind-columns">
         <section className="mind-block">
           <h3>
-            <Activity aria-hidden="true" /> Gates
+            <Activity aria-hidden="true" /> <Tr text={'Gates'} before after />
           </h3>
           <p className="mind-block-sub">
-            Every event is checked against these in order. The closed one is the reason.
+            <Tr
+              text={'Every event is checked against these in order. The closed one is the reason.'}
+            />
           </p>
           {/* Quiet hours, reachable.
               The Gateway has accepted these since they were written and
@@ -331,11 +340,15 @@ export function MindPage(): React.JSX.Element {
                 onChange={(event) => void setQuiet({ quiet_enabled: event.target.checked })}
                 type="checkbox"
               />
-              <span>Quiet hours</span>
+              <span>
+                <Tr text={'Quiet hours'} />
+              </span>
             </label>
             <div className={status?.settings?.quiet_enabled === false ? 'is-off' : ''}>
               <label>
-                <span>from</span>
+                <span>
+                  <Tr text={'from'} />
+                </span>
                 <select
                   disabled={status?.settings?.quiet_enabled === false}
                   onChange={(event) => void setQuiet({ quiet_start: Number(event.target.value) })}
@@ -349,7 +362,9 @@ export function MindPage(): React.JSX.Element {
                 </select>
               </label>
               <label>
-                <span>until</span>
+                <span>
+                  <Tr text={'until'} />
+                </span>
                 <select
                   disabled={status?.settings?.quiet_enabled === false}
                   onChange={(event) => void setQuiet({ quiet_end: Number(event.target.value) })}
@@ -387,7 +402,9 @@ export function MindPage(): React.JSX.Element {
                 onChange={(event) => void setQuiet({ dedupe_events: event.target.checked })}
                 type="checkbox"
               />
-              <span>Ignore repeats</span>
+              <span>
+                <Tr text={'Ignore repeats'} />
+              </span>
             </label>
             <p>
               {status?.settings?.dedupe_events === false
@@ -412,20 +429,23 @@ export function MindPage(): React.JSX.Element {
 
         <section className="mind-block">
           <h3>
-            <Inbox aria-hidden="true" /> Waiting to be said
+            <Inbox aria-hidden="true" /> <Tr text={'Waiting to be said'} before after />
           </h3>
           <p className="mind-block-sub">
-            Held because it could not be said yet, not because it stopped mattering.
+            <Tr text={'Held because it could not be said yet, not because it stopped mattering.'} />
           </p>
           {waiting.length === 0 ? (
-            <p className="mind-empty">Nothing is waiting.</p>
+            <p className="mind-empty">
+              <Tr text={'Nothing is waiting.'} />
+            </p>
           ) : (
             <ul className="mind-waiting">
               {waiting.map((item) => (
                 <li key={`${item.summary}-${item.waited_seconds}`}>
                   <span className="mind-waiting-what">{item.summary}</span>
                   <span className="mind-waiting-why">
-                    {item.because || item.reason} · held {humanGap(item.waited_seconds)}
+                    {item.because || item.reason} <Tr text={'· held'} before after />
+                    {humanGap(item.waited_seconds)}
                   </span>
                 </li>
               ))}
@@ -436,10 +456,14 @@ export function MindPage(): React.JSX.Element {
 
       <section className="mind-block">
         <h3>
-          <Brain aria-hidden="true" /> What she watches
+          <Brain aria-hidden="true" /> <Tr text={'What she watches'} before after />
         </h3>
         <p className="mind-block-sub">
-          Events each source produced this week. Wired and silent is the one worth looking at.
+          <Tr
+            text={
+              'Events each source produced this week. Wired and silent is the one worth looking at.'
+            }
+          />
         </p>
         <ul className="mind-feeders">
           {feeders.map((feeder) => {
@@ -474,7 +498,9 @@ export function MindPage(): React.JSX.Element {
 
       {errors.length > 0 && (
         <section className="mind-block">
-          <h3>Trouble</h3>
+          <h3>
+            <Tr text={'Trouble'} />
+          </h3>
           <ul className="mind-errors">
             {errors.map(([job, error]) => (
               <li key={job}>
@@ -488,11 +514,15 @@ export function MindPage(): React.JSX.Element {
 
       <section className="mind-block">
         <h3>
-          <History aria-hidden="true" /> Decisions
+          <History aria-hidden="true" /> <Tr text={'Decisions'} before after />
         </h3>
-        <p className="mind-block-sub">Where each event stopped, and what it cost to decide.</p>
+        <p className="mind-block-sub">
+          <Tr text={'Where each event stopped, and what it cost to decide.'} />
+        </p>
         {decisions.length === 0 ? (
-          <p className="mind-empty">Nothing has reached the policy yet.</p>
+          <p className="mind-empty">
+            <Tr text={'Nothing has reached the policy yet.'} />
+          </p>
         ) : (
           <ul className="mind-stream">
             {decisions.map((decision) => (
@@ -519,7 +549,8 @@ export function MindPage(): React.JSX.Element {
                   {decision.provider === 'deterministic'
                     ? 'no model'
                     : decision.provider.split('/')[0]}{' '}
-                  · {decision.latency_ms.toFixed(0)}ms
+                  · {decision.latency_ms.toFixed(0)}
+                  <Tr text={'ms'} after />
                   {decision.said_ms && decision.said_ms > 500
                     ? ` · spoke ${(decision.said_ms / 1000).toFixed(1)}s`
                     : ''}

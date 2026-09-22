@@ -1,3 +1,5 @@
+import { t } from '../../store/locale'
+import { Tr } from '../../store/locale'
 /**
  * Meetings: what was said, what was decided, what is now owed.
  *
@@ -79,10 +81,15 @@ export function MeetingsPage(): React.JSX.Element {
     <div className="wf-page">
       <header className="cron-head">
         <div>
-          <h2>Meetings</h2>
+          <h2>
+            <Tr text={'Meetings'} />
+          </h2>
           <p>
-            Marvi records your microphone and what your speakers are playing, transcribes both here,
-            and tells you what was decided. You start every recording; she never does.
+            <Tr
+              text={
+                'Marvi records your microphone and what your speakers are playing, transcribes both here, and tells you what was decided. You start every recording; she never does.'
+              }
+            />
           </p>
         </div>
       </header>
@@ -98,7 +105,9 @@ export function MeetingsPage(): React.JSX.Element {
         <div className="mt-offer">
           <div>
             <strong>{page.offer.title}</strong>
-            <span>starts about now. Take notes?</span>
+            <span>
+              <Tr text={'starts about now. Take notes?'} />
+            </span>
           </div>
           <button
             className="cron-new"
@@ -107,7 +116,7 @@ export function MeetingsPage(): React.JSX.Element {
             type="button"
           >
             <Disc aria-hidden="true" />
-            Record it
+            <Tr text={'Record it'} after />
           </button>
         </div>
       ) : null}
@@ -117,7 +126,9 @@ export function MeetingsPage(): React.JSX.Element {
           <div className="mt-live">
             <Disc aria-hidden="true" className="mt-live-dot" />
             <div>
-              <strong>Recording</strong>
+              <strong>
+                <Tr text={'Recording'} />
+              </strong>
               <span>
                 {Math.floor(live.seconds / 60)}:
                 {String(Math.floor(live.seconds % 60)).padStart(2, '0')}
@@ -134,18 +145,18 @@ export function MeetingsPage(): React.JSX.Element {
             </div>
             <button className="cron-new" onClick={() => void stop(live.id)} type="button">
               <Square aria-hidden="true" />
-              Stop and write it up
+              <Tr text={'Stop and write it up'} after />
             </button>
           </div>
         ) : (
           <div className="mt-begin">
             <input
-              aria-label="What this meeting is"
+              aria-label={t('What this meeting is')}
               onChange={(event) => setTitle(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter') void start()
               }}
-              placeholder="What is this meeting?"
+              placeholder={t('What is this meeting?')}
               value={title}
             />
             <button
@@ -155,7 +166,7 @@ export function MeetingsPage(): React.JSX.Element {
               type="button"
             >
               <Disc aria-hidden="true" />
-              Record
+              <Tr text={'Record'} after />
             </button>
           </div>
         )}
@@ -181,7 +192,7 @@ export function MeetingsPage(): React.JSX.Element {
                 onClick={() => void read(one.id)}
                 type="button"
               >
-                Notes
+                <Tr text={'Notes'} />
               </button>
               <button
                 aria-label={`Forget ${one.title}`}
@@ -193,7 +204,11 @@ export function MeetingsPage(): React.JSX.Element {
             </div>
           </li>
         ))}
-        {meetings.length === 0 ? <li className="wf-empty-row">Nothing recorded yet.</li> : null}
+        {meetings.length === 0 ? (
+          <li className="wf-empty-row">
+            <Tr text={'Nothing recorded yet.'} />
+          </li>
+        ) : null}
       </ul>
 
       {notice && page ? (
@@ -225,14 +240,16 @@ function ConsentNotice({
   return (
     <div className="connector-modal-shell" role="presentation">
       <div
-        aria-label="Before recording"
+        aria-label={t('Before recording')}
         aria-modal="true"
         className="connector-modal"
         role="dialog"
       >
         <header className="connector-modal-head">
           <div>
-            <h3>Before recording</h3>
+            <h3>
+              <Tr text={'Before recording'} />
+            </h3>
           </div>
         </header>
         {notice.split('\n\n').map((paragraph) => (
@@ -242,10 +259,10 @@ function ConsentNotice({
         ))}
         <footer className="wf-drawer-foot">
           <button onClick={onClose} type="button">
-            Not now
+            <Tr text={'Not now'} />
           </button>
           <button onClick={onAccept} type="button">
-            I understand
+            <Tr text={'I understand'} />
           </button>
         </footer>
       </div>
@@ -280,7 +297,7 @@ function Notes({
             <h3>{meeting.title}</h3>
             <p>
               {meeting.started_at.slice(0, 16).replace('T', ' ')} ·{' '}
-              {Math.round((meeting.seconds ?? 0) / 60)} min
+              {Math.round((meeting.seconds ?? 0) / 60)} <Tr text={'min'} before after />
             </p>
           </div>
         </header>
@@ -289,7 +306,9 @@ function Notes({
 
         {meeting.decisions?.length ? (
           <section className="wf-section">
-            <h4>Decided</h4>
+            <h4>
+              <Tr text={'Decided'} />
+            </h4>
             <ul className="wf-comments">
               {meeting.decisions.map((one) => (
                 <li key={one}>{one}</li>
@@ -300,18 +319,24 @@ function Notes({
 
         {meeting.actions?.length ? (
           <section className="wf-section">
-            <h4>Owed</h4>
+            <h4>
+              <Tr text={'Owed'} />
+            </h4>
             <ul className="wf-comments">
               {meeting.actions.map((one) => (
                 <li key={one}>{one}</li>
               ))}
             </ul>
-            <p className="wf-note">Each of these is already a card on the jobs board.</p>
+            <p className="wf-note">
+              <Tr text={'Each of these is already a card on the jobs board.'} />
+            </p>
           </section>
         ) : null}
 
         <section className="wf-section">
-          <h4>What was said</h4>
+          <h4>
+            <Tr text={'What was said'} />
+          </h4>
           <ul className="mt-turns">
             {(meeting.turns ?? []).map((turn, index) => (
               <li key={`${turn.at_seconds}-${index}`}>
@@ -326,7 +351,9 @@ function Notes({
               </li>
             ))}
             {meeting.turns?.length === 0 ? (
-              <li className="wf-empty">Nothing was heard on either side.</li>
+              <li className="wf-empty">
+                <Tr text={'Nothing was heard on either side.'} />
+              </li>
             ) : null}
           </ul>
         </section>

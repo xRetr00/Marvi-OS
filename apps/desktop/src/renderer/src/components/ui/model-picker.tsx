@@ -1,3 +1,4 @@
+import { Tr } from '../../store/locale'
 import { Popover } from 'radix-ui'
 import { Check, ChevronDown, ChevronRight, Search } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -411,10 +412,14 @@ function ModelOption({
               sideOffset={5}
             >
               <header>
-                <small>Model options</small>
+                <small>
+                  <Tr text={'Model options'} />
+                </small>
                 <strong>{model.name}</strong>
               </header>
-              <span className="model-picker-effort-heading">Reasoning effort</span>
+              <span className="model-picker-effort-heading">
+                <Tr text={'Reasoning effort'} />
+              </span>
               {modelEffortChoices(model, effortDefaultLabel).map((choice) => {
                 const checked = effort === choice.value
                 return (

@@ -1,3 +1,4 @@
+import { Tr } from '../../store/locale'
 /**
  * The transcript: viewport, scroller, centred column, messages.
  *
@@ -41,7 +42,9 @@ function EmptyState(): React.JSX.Element {
           a watermark nobody asked for. */}
       <img alt="" aria-hidden="true" className="chat-empty-logo" src={marviLogo} />
       <div className="chat-empty-mark" aria-hidden="true">
-        <span>MARVI</span>
+        <span>
+          <Tr text={'MARVI'} />
+        </span>
       </div>
       <h2>{t('What should we work through?', locale)}</h2>
       <p>{t('One assistant across voice, memory, tools, and the room.', locale)}</p>

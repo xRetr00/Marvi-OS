@@ -1,3 +1,5 @@
+import { t } from '../store/locale'
+import { Tr } from '../store/locale'
 /**
  * The keyboard shortcuts window: every global hotkey, and changing one.
  *
@@ -21,7 +23,12 @@ import {
 } from '../../../shared/hotkeys'
 
 export function KeyCombo({ accelerator }: { accelerator: string }): React.JSX.Element {
-  if (!accelerator) return <span className="hotkeys-off">Off</span>
+  if (!accelerator)
+    return (
+      <span className="hotkeys-off">
+        <Tr text={'Off'} />
+      </span>
+    )
   return (
     <span className="hotkeys-combo">
       {accelerator.split('+').map((part) => (
@@ -101,23 +108,32 @@ export function HotkeysWindow({ onClose }: { onClose: () => void }): React.JSX.E
       role="presentation"
     >
       <div
-        aria-label="Keyboard shortcuts"
+        aria-label={t('Keyboard shortcuts')}
         aria-modal="true"
         className="connector-modal hotkeys-modal"
         role="dialog"
       >
-        <button aria-label="Close" className="connector-modal-close" onClick={onClose} type="button">
+        <button
+          aria-label={t('Close')}
+          className="connector-modal-close"
+          onClick={onClose}
+          type="button"
+        >
           <X aria-hidden="true" size={14} />
         </button>
 
         <header className="connector-modal-head">
           <div>
             <h3>
-              <Keyboard aria-hidden="true" size={16} /> Keyboard shortcuts
+              <Keyboard aria-hidden="true" size={16} />{' '}
+              <Tr text={'Keyboard shortcuts'} before after />
             </h3>
             <p>
-              These work anywhere in Windows, whether or not Marvi has focus. Click a combination to
-              record a new one, Escape to cancel.
+              <Tr
+                text={
+                  'These work anywhere in Windows, whether or not Marvi has focus. Click a combination to record a new one, Escape to cancel.'
+                }
+              />
             </p>
           </div>
         </header>
@@ -148,7 +164,9 @@ export function HotkeysWindow({ onClose }: { onClose: () => void }): React.JSX.E
                     type="button"
                   >
                     {listening ? (
-                      <span className="hotkeys-listening">Press a combination…</span>
+                      <span className="hotkeys-listening">
+                        <Tr text={'Press a combination…'} />
+                      </span>
                     ) : (
                       <KeyCombo accelerator={accelerator} />
                     )}
@@ -170,9 +188,11 @@ export function HotkeysWindow({ onClose }: { onClose: () => void }): React.JSX.E
 
         <footer className="hotkeys-foot">
           <button className="hotkeys-reset" onClick={() => void reset()} type="button">
-            <RotateCcw aria-hidden="true" size={12} /> Restore defaults
+            <RotateCcw aria-hidden="true" size={12} /> <Tr text={'Restore defaults'} before after />
           </button>
-          <span className="hotkeys-note">Saved as you change them.</span>
+          <span className="hotkeys-note">
+            <Tr text={'Saved as you change them.'} />
+          </span>
         </footer>
       </div>
     </div>
