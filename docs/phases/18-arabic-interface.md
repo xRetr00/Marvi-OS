@@ -15,8 +15,7 @@ language and is instructed to store facts in English.
 - [x] Test locale behavior, typecheck, build, and desktop regression suite.
 
 Evidence: desktop typecheck, `electron-vite build`, 607 desktop tests, and 21
-Gateway remembering tests passed on 2026-09-22. RTL visual review remains for
-Milestone 3.
+Gateway remembering tests passed on 2026-09-22.
 
 ## Milestone 2 — Static renderer copy
 
@@ -45,7 +44,13 @@ formats are locale-aware. Focused behavior tests and desktop typecheck passed on
 
 ## Milestone 4 — Direction and acceptance
 
-- [ ] Isolate paths, URLs, model names, and identifiers in mixed Arabic prose.
-- [ ] Review control center, settings, Chat, and Island visually in RTL.
-- [ ] Run desktop and Gateway suites, build, and `git diff --check`.
-- [ ] Update README, UI contract, upstream ledger, and implementation log.
+- [x] Isolate paths, URLs, model names, and identifiers in mixed Arabic prose.
+- [x] Review control center, settings, Chat, and Island visually in RTL.
+- [x] Run desktop and Gateway suites, build, and `git diff --check`.
+- [x] Update README, UI contract, upstream ledger, and implementation log.
+
+Evidence: Chromium renderer captures at 1440×1000 cover the RTL control center,
+Preferences, and Chat, plus the 640×320 confirmation Island. They are stored in
+`docs/evidence/arabic-rtl-*.png`. Desktop typecheck and production renderer
+build passed; all 615 desktop tests passed after retrying one Windows process
+ownership timeout, and 52 Gateway remembering tests passed on 2026-09-23.

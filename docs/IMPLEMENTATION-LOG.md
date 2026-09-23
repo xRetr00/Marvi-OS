@@ -1,5 +1,16 @@
 # Implementation Log
 
+## 2026-09-23 — Arabic RTL acceptance
+
+- Replaced the remaining physical edge colors with logical edges and mirrored
+  the active navigation accent in RTL.
+- Added a reusable LTR isolate for paths, filenames, URLs, provider/model IDs,
+  MCP IDs, and commit hashes embedded in Arabic UI. Code and raw diagnostics
+  retain their original direction and content.
+- Reviewed the control center, Preferences, Chat, and confirmation Island in
+  built renderer captures under `docs/evidence/arabic-rtl-*.png`, fixing the
+  English conditional copy those captures exposed.
+
 ## 2026-09-23 — Dynamic Arabic status and formats
 
 - Localized provider failures, tool activity, room device diagnosis, runtime

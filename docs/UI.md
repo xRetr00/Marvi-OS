@@ -3,9 +3,10 @@
 The control center offers an independent English/Arabic interface setting in
 Preferences. Arabic sets document language and RTL direction in both renderer
 windows. Chat paragraphs and inputs use automatic text direction; code and URL
-inputs remain left to right. Individual paths and model identifiers still need
-review wherever they appear inside Arabic prose. Speech language remains a
-separate setting. The locale preference persists and synchronizes between windows.
+inputs remain left to right. Paths, URLs, filenames, provider names, model
+identifiers, commit hashes, and other technical runs use isolated LTR spans so
+they cannot reorder surrounding Arabic prose. Speech language remains a separate
+setting. The locale preference persists and synchronizes between windows.
 
 Chat's validated widget vocabulary includes receipt, cart, order status,
 booking, stay, and flight tracker cards. These six kinds require an evidence ID

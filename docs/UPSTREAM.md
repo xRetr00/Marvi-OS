@@ -1,6 +1,6 @@
 # Upstream Reuse Ledger
 
-## Arabic interface groundwork — 2026-09-22
+## Arabic interface and RTL acceptance — 2026-09-23
 
 - [`@fontsource-variable/noto-sans-arabic`](https://fontsource.org/fonts/noto-sans-arabic),
   version 5.3.0, bundles the [Noto Sans Arabic](https://github.com/notofonts/arabic)
@@ -8,8 +8,9 @@
   shaping. Update with the desktop npm dependencies and recheck the font license.
 - HTML `dir`, CSS logical properties, and the built-in `Intl` formatters are
   platform features. The renderer's locale store and English-keyed catalogue
-  are Marvi-specific UI adapters. No third-party localization framework or
-  copied translation code is used.
+  are Marvi-specific UI adapters. The LTR technical-run isolate is a thin HTML
+  `<bdi dir="ltr">` wrapper. No third-party localization framework or copied
+  translation code is used.
 
 ## Commerce and travel generative cards — 2026-09-18
 
