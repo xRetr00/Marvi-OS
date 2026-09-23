@@ -57,4 +57,14 @@ describe('the header status', () => {
     // A permanent empty slot in a header is furniture.
     expect(without).not.toContain('voice-status-blocker')
   })
+
+  it('names low-resource mode instead of inviting a voice join', () => {
+    const html = renderToStaticMarkup(
+      <VoiceStatus disabled link="off" voice={ready} warming={false} />
+    )
+
+    expect(html).toContain('VOICE OFF')
+    expect(html).toContain('Voice not working in low-resource mode')
+    expect(html).not.toContain('Press Join')
+  })
 })

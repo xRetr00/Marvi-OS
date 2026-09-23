@@ -183,6 +183,29 @@ describe('supervising a service', () => {
     expect(seen.at(-1)?.[0].detail).toBe('not installed')
   })
 
+  it('stops and restores a named service for low-resource mode', async () => {
+    const seen: ServiceReport[][] = []
+    const supervisor = new ServiceSupervisor((reports) => seen.push(reports))
+    supervisor.add({
+      name: 'voice',
+      command: process.execPath,
+      args: ['-e', 'setInterval(() => {}, 1000)'],
+      cwd: root
+    })
+    supervisor.startAll()
+    await vi.waitFor(() => expect(seen.at(-1)?.[0].state).toBe('running'))
+
+    expect(supervisor.stop('voice', 'disabled by low-resource mode')).toBe(true)
+    expect(supervisor.reports()[0]).toMatchObject({
+      state: 'stopped',
+      detail: 'disabled by low-resource mode'
+    })
+
+    expect(supervisor.start('voice')).toBe(true)
+    await vi.waitFor(() => expect(seen.at(-1)?.[0].state).toBe('running'))
+    supervisor.stopAll()
+  })
+
   it('gives up rather than looping forever', async () => {
     const seen: ServiceReport[][] = []
     const supervisor = new ServiceSupervisor((reports) => seen.push(reports))

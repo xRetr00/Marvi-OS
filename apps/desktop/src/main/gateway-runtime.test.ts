@@ -29,6 +29,22 @@ describe('normalizeRuntimeStatus', () => {
     ).toMatchObject({ assistant: { phase: 'thinking', level: 1 } })
   })
 
+  it('carries the low-resource voice gate into the renderer contract', () => {
+    expect(
+      normalizeRuntimeStatus({
+        ...valid,
+        resources: {
+          low_resource: true,
+          because: 'FC 26',
+          app: 'FC26.exe',
+          automatic: true
+        }
+      })
+    ).toMatchObject({
+      resources: { low_resource: true, because: 'FC 26', automatic: true }
+    })
+  })
+
   it('rejects invalid external state instead of trusting the loopback response', () => {
     expect(
       normalizeRuntimeStatus({ ...valid, assistant: { ...valid.assistant, phase: 'dreaming' } })

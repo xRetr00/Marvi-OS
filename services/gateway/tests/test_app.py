@@ -12,6 +12,8 @@ class FakeOneShot:
     def __init__(self) -> None:
         self.calls: list[tuple[str, str]] = []
         self.stopped = False
+        self.released = False
+        self.enabled = lambda: True
 
     def speak(self, text: str, purpose: str = "proactive") -> dict:
         self.calls.append((text, purpose))
@@ -23,6 +25,12 @@ class FakeOneShot:
 
     def close(self) -> None:
         return None
+
+    def release(self) -> None:
+        self.released = True
+
+    def warm(self) -> bool:
+        return True
 
 
 async def health(monkeypatch, livekit_running: bool) -> dict:
@@ -98,6 +106,33 @@ async def test_every_session_gets_its_own_room() -> None:
         second = (await client.post("/livekit/session")).json()
 
     assert first["room"] != second["room"]
+
+
+@pytest.mark.asyncio
+async def test_low_resource_mode_is_a_hard_voice_boundary() -> None:
+    speech = FakeOneShot()
+    app = create_app(version="0.1.0-test", announcer_service=speech)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://marvi.local") as client:
+        enabled = await client.post("/resources", json={"low_resource": True})
+        runtime = await client.get("/runtime")
+        session = await client.post("/livekit/session")
+        read_aloud = await client.post("/speech/read-aloud", json={"text": "No."})
+        dictation = await client.post("/chat/dictation", json={"language": "en-US"})
+        speech_status = await client.get("/speech/status")
+
+    assert enabled.json()["low_resource"] is True
+    assert runtime.json()["resources"]["low_resource"] is True
+    assert runtime.json()["components"]["voice"] == {
+        "state": "offline",
+        "detail": "Voice not working in low-resource mode",
+    }
+    assert runtime.json()["components"]["livekit"]["state"] == "offline"
+    assert session.status_code == 503
+    assert read_aloud.status_code == 503
+    assert dictation.status_code == 503
+    assert speech_status.json()["enabled"] is False
+    assert speech.released is True
 
 
 @pytest.mark.asyncio

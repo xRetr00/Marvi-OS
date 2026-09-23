@@ -3,6 +3,8 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 
 import { Composer } from './Composer'
+import { $runtimeState } from '../../store/voice-state'
+import { OFFLINE_RUNTIME } from '../../../../shared/runtime'
 
 /**
  * The composer renders at all, with its slash trigger wired the way the
@@ -40,5 +42,17 @@ describe('the composer', () => {
     // The popover renders no DOM while the trigger is inactive, so an empty
     // composer is an empty composer.
     expect(markup).not.toContain('chat-slash')
+  })
+
+  it('disables the microphone with the low-resource explanation', () => {
+    $runtimeState.set({
+      ...OFFLINE_RUNTIME,
+      resources: { ...OFFLINE_RUNTIME.resources, low_resource: true }
+    })
+    const disabled = renderToStaticMarkup(<Harness />)
+    $runtimeState.set(OFFLINE_RUNTIME)
+
+    expect(disabled).toContain('Voice not working in low-resource mode')
+    expect(disabled).toContain('disabled=""')
   })
 })

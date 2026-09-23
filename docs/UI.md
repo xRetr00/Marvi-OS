@@ -317,6 +317,27 @@ Honcho also exposes its workspace scope. Keys are write-only. Local embedding
 controls disappear when an external provider owns retrieval; provider-owned
 embeddings are never presented as a Marvi embedding setting.
 
+## Low-resource voice boundary
+
+Low-resource mode is a hard voice-off state, not a slower voice profile. While
+it is active, Electron stops the local LiveKit server, the LiveKit Agent worker,
+and the native wake listener; the Gateway cancels dictation, unloads one-shot
+speech, and refuses new LiveKit, read-aloud, and dictation requests. An active
+room disconnects through the LiveKit client lifecycle.
+
+The Voice page renders no orb, activity cards, model pickers, microphone list,
+calendar card, meter, Join, Mute, or wake control. It shows one bounded message:
+`Voice not working in low-resource mode`, with the instruction to turn the mode
+off. The Voice header uses the same wording. Chat stays available, but its
+composer microphone is disabled and exposes that wording as its accessible
+name and tooltip. Wake joins and programmatic joins are refused at both the
+renderer and Gateway boundaries. Turning low-resource mode off restores the
+supervised voice services and restores the wake listener only when it was
+registered before the mode began.
+
+The Gateway and text Chat remain running. Smart Room is asked to enter its
+separate low-power mode; its external process remains owned by Smart Room.
+
 ## Dynamic Island
 
 The active Island is a detached, fully rounded capsule, never a screen-edge notch.

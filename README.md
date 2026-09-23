@@ -84,6 +84,12 @@ them against the same turn's tool result before showing a card.
 
 Voice is being qualified against real speaker and microphone behavior. Local wake detection, speech recognition, synthesis, interruption handling, and a local LiveKit session are implemented; the [voice phase](docs/phases/03-full-duplex-voice.md) records the remaining streaming and soak gates.
 
+Low-resource mode is a hard voice-off boundary: it stops the local LiveKit
+server, voice worker, and wake listener, unloads speech resources, disconnects
+an active room, and disables every Voice control plus Chat dictation. Text Chat
+and the Gateway remain available. Turning the mode off restores the supervised
+voice services and the prior wake-listener preference.
+
 ### See only what matters
 
 The **Dynamic Island** is Marvi's glanceable home. It shows a live voice state, a concise announcement, a confirmation, or the progress of computer work. Background events do not pull the main window into focus. Quiet hours, cooldowns, presence, and Windows presentation state help Marvi choose when to speak and when to wait.

@@ -2282,3 +2282,16 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   the default five-second timeout on slower CI hosts.
 - Evidence: synchronizer unit/integration tests, version consistency check,
   desktop lint/typecheck/tests, and focused Gateway accounting/policy tests.
+# 2026-09-23 — Low-resource mode disables voice completely
+
+- Promoted low-resource state into the authoritative Gateway runtime contract.
+- Added a hard Gateway gate for LiveKit session credentials, read-aloud, and
+  chat dictation; active dictation is cancelled and the warm announcer model is
+  released on entry.
+- Electron now stops and restores the local LiveKit server and Agent worker,
+  suspends the native wake listener without changing its registration, and
+  disconnects an active renderer room through `Room.disconnect()`.
+- Voice renders one unavailable state and Chat's microphone control is disabled
+  with `Voice not working in low-resource mode`.
+- Added Gateway, supervisor, runtime-normalization, composer, and voice-status
+  regression coverage.

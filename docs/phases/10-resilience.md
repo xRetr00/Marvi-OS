@@ -209,6 +209,15 @@ creates a console window. Its tray M is blue while listening, briefly green
 after a valid wake, and red for stopped/error state, with matching text
 tooltips. A recovered inference clears its prior transient error indication.
 
+**Step 11 — hard low-resource voice boundary. Done.** The Gateway publishes the
+resource mode in every runtime snapshot and refuses LiveKit sessions, read
+aloud, and dictation while it is active. It closes dictation workers and drops
+the warm one-shot speech model. Electron stops the supervised LiveKit server,
+voice worker, and wake listener, disconnects an active client room, and restores
+them when the mode ends. The Voice page is replaced by a single disabled-state
+message and Chat's microphone control is disabled with the same accessible
+explanation. Gateway, Chat, and non-voice work remain available.
+
 ## Acceptance evidence
 
 - Each of the three original failures — `uv` missing, port taken, broken imports
