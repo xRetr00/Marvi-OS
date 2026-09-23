@@ -1,5 +1,6 @@
 import { Tr } from '../store/locale'
-import { t } from '../store/locale'
+import { formatNumber, interpolate, t } from '../store/locale'
+import { gatewayCopy } from '../store/gateway-copy'
 /**
  * How Marvi is, right now, in one picture.
  *
@@ -63,14 +64,14 @@ const DEVICE_WORDS: Record<DeviceState, string> = {
  */
 function plainly(detail: string | undefined, fallback: string): string {
   const text = (detail ?? '').trim()
-  if (!text) return fallback
-  if (/^sidecar connected/i.test(text)) return 'connected'
-  if (/^local facade online/i.test(text)) return 'running here'
-  if (/^livekit up/i.test(text)) return 'ready'
+  if (!text) return t(fallback)
+  if (/^sidecar connected/i.test(text)) return t('connected')
+  if (/^local facade online/i.test(text)) return t('running here')
+  if (/^livekit up/i.test(text)) return t('ready')
   // "Smart Room camera online, 2 visible, Shereef" -> "camera on, 2 visible".
   const camera = /^smart room camera online,\s*(.+?)(?:,\s*[^,]*)?$/i.exec(text)
-  if (camera) return `camera on, ${camera[1]}`
-  return text
+  if (camera) return interpolate('camera on, {visible}', { visible: camera[1] })
+  return gatewayCopy(text)
 }
 
 function Hop({ label, tone }: { label: string; tone: Tone }): React.JSX.Element {
@@ -143,20 +144,19 @@ export function OverviewPage({
         <div className="ovp-hero-main">
           <Sparkles aria-hidden="true" />
           <div>
-            <h2>{voice.caption}</h2>
-            <p>{voice.detail ?? 'Standing by for voice, context, or scheduled work.'}</p>
+            <h2>{t(voice.caption)}</h2>
+            <p dir="auto">{t(voice.detail ?? 'Standing by for voice, context, or scheduled work.')}</p>
           </div>
         </div>
         <button className="ovp-hero-mind" onClick={onOpenMind} type="button">
           <span className={quiet ? 'ovp-mind-dot is-quiet' : 'ovp-mind-dot'} />
-          {quiet ? `Quiet — ${quiet}` : 'Listening for anything worth saying'}
+          {quiet ? interpolate('Quiet — {reason}', { reason: t(quiet) }) : t('Listening for anything worth saying')}
         </button>
       </section>
 
       {unwell.length > 0 && (
         <p className="ovp-trouble">
-          {unwell.map(({ label }) => label).join(', ')} {unwell.length === 1 ? 'is' : 'are'}{' '}
-          <Tr text={'not answering.'} before after />
+          {interpolate('{services} not answering.', { services: unwell.map(({ label }) => t(label)).join(', ') })}
         </p>
       )}
 
@@ -177,8 +177,8 @@ export function OverviewPage({
             <Hop label={t('Voice')} tone={toneOf(runtime.components.voice?.state)} />
           </div>
           <p className="ovp-path-note">
-            {runtime.model.llm || 'Automatic model'} ·{' '}
-            {voice.yolo ? 'acts without asking' : 'asks first'}
+            <bdi dir="ltr">{runtime.model.llm || t('Automatic model')}</bdi> ·{' '}
+            {t(voice.yolo ? 'acts without asking' : 'asks first')}
           </p>
         </section>
 
@@ -188,7 +188,7 @@ export function OverviewPage({
           </h3>
           <div className="ovp-flow">
             <Hop
-              label={`${feeders.filter((one) => one.wired).length} sources`}
+              label={interpolate('{count} sources', { count: feeders.filter((one) => one.wired).length })}
               tone={mute.length ? 'warning' : feeders.length ? 'ready' : 'neutral'}
             />
             <Hop
@@ -199,10 +199,10 @@ export function OverviewPage({
           </div>
           <p className="ovp-path-note">
             {mute.length
-              ? `${mute.map((one) => one.label.toLowerCase()).join(', ')} connected but silent`
+              ? interpolate('{sources} connected but silent', { sources: mute.map((one) => t(one.label.toLowerCase())).join(', ') })
               : waiting.length
-                ? `${waiting.length} held until it can be said`
-                : 'nothing waiting'}
+                ? interpolate('{count} held until it can be said', { count: waiting.length })
+                : t('nothing waiting')}
           </p>
         </section>
       </div>
@@ -210,8 +210,8 @@ export function OverviewPage({
       {waiting.length > 0 && (
         <p className="ovp-waiting">
           <Inbox aria-hidden="true" />
-          {waiting[0].summary} <Tr text={'— held because'} before after />
-          {waiting[0].because || waiting[0].reason}
+          <bdi dir="auto">{waiting[0].summary}</bdi> <Tr text={'— held because'} before after />
+          <bdi dir="auto">{waiting[0].because || waiting[0].reason}</bdi>
         </p>
       )}
 
@@ -219,7 +219,7 @@ export function OverviewPage({
         <p className="ovp-resources">
           <Megaphone aria-hidden="true" />
           <Tr text={'Standing down off the GPU while'} after />
-          {resources.because} <Tr text={'is running.'} before after />
+          <bdi dir="auto">{resources.because}</bdi> <Tr text={'is running.'} before after />
         </p>
       )}
 
@@ -263,12 +263,12 @@ export function OverviewPage({
             <div className={`ovp-tile tone-${tile.tone}`} key={tile.label}>
               <span>
                 <i aria-hidden="true" />
-                {tile.label}
+                {t(tile.label)}
               </span>
               {/* The exact wording stays reachable on hover: shortening it for
                   reading should not mean losing the address when something is
                   wrong with it. */}
-              <strong title={tile.raw ?? tile.value}>{tile.value}</strong>
+              <strong dir="auto" title={tile.raw ?? tile.value}>{t(tile.value)}</strong>
             </div>
           ))}
         </div>
@@ -280,15 +280,15 @@ export function OverviewPage({
         <h3>
           <Server aria-hidden="true" /> <Tr text={'Systems'} before after />
           <span>
-            {ready} <Tr text={'of'} before after />
-            {services.length} <Tr text={'ready'} before after />
+            {formatNumber(ready)} <Tr text={'of'} before after />
+            {formatNumber(services.length)} <Tr text={'ready'} before after />
           </span>
         </h3>
         <ul>
           {services.map(({ label, service }) => (
             <li className={`tone-${toneOf(service?.state)}`} key={label}>
               <i aria-hidden="true" />
-              <span>{label}</span>
+              <span>{t(label)}</span>
               <small title={service?.detail ?? ''}>
                 {plainly(service?.detail, 'no status received')}
               </small>

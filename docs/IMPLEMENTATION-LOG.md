@@ -1,5 +1,14 @@
 # Implementation Log
 
+## 2026-09-23 — Dynamic Arabic status and formats
+
+- Localized provider failures, tool activity, room device diagnosis, runtime
+  health, voice state, and known Gateway-written prose at the renderer boundary.
+- Routed live counts, decimals, currencies, dates, clocks, durations, and
+  relative times through the persisted interface locale. Unknown diagnostics
+  retain their exact English fallback and technical payloads remain LTR.
+- Speech behavior and the English memory storage pipeline remain unchanged.
+
 ## 2026-09-22 — Static Arabic renderer copy
 
 - Extracted static JSX text, accessibility labels, placeholders, and page copy

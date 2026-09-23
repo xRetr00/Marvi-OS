@@ -1,4 +1,4 @@
-import { t } from '../store/locale'
+import { formatDate, formatRelative, interpolate, t } from '../store/locale'
 import { Tr } from '../store/locale'
 import { useStore } from '@nanostores/react'
 import { Check, Download, GitCommit, Hash, RefreshCw, ShieldCheck, X } from 'lucide-react'
@@ -21,12 +21,15 @@ import { UiTooltip } from './ui/tooltip'
 const shortSha = (sha: string | undefined): string => sha?.slice(0, 8) ?? '—'
 
 function relativeCheckTime(checkedAt: number | null): string {
-  if (!checkedAt) return 'Never checked'
+  if (!checkedAt) return t('Never checked')
   const elapsed = Math.max(0, Date.now() - checkedAt)
-  if (elapsed < 60_000) return 'Checked just now'
-  if (elapsed < 3_600_000) return `Checked ${Math.round(elapsed / 60_000)}m ago`
-  if (elapsed < 86_400_000) return `Checked ${Math.round(elapsed / 3_600_000)}h ago`
-  return `Checked ${Math.round(elapsed / 86_400_000)}d ago`
+  if (elapsed < 60_000) return t('Checked just now')
+  const age = elapsed < 3_600_000
+    ? formatRelative(-Math.round(elapsed / 60_000), 'minute')
+    : elapsed < 86_400_000
+      ? formatRelative(-Math.round(elapsed / 3_600_000), 'hour')
+      : formatRelative(-Math.round(elapsed / 86_400_000), 'day')
+  return interpolate('Checked {age}', { age })
 }
 
 function CommitChanges({
@@ -48,7 +51,7 @@ function CommitChanges({
             {group.commits.map((commit) => (
               <li key={commit.sha}>
                 <span>{commit.display}</span>
-                <code title={`${commit.author} · ${new Date(commit.at * 1000).toLocaleString()}`}>
+                <code dir="ltr" title={`${commit.author} · ${formatDate(commit.at * 1000, { dateStyle: 'medium', timeStyle: 'short' })}`}>
                   {shortSha(commit.sha)}
                 </code>
               </li>

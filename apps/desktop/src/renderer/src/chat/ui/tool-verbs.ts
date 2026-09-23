@@ -21,6 +21,8 @@
  * are only for the handful the rule gets wrong or has nothing to work with.
  */
 
+import { $interfaceLocale } from '../../store/locale'
+
 /** Present participle and past tense, for "Marvi is X" and "Marvi X". */
 type Tense = readonly [present: string, past: string]
 
@@ -164,5 +166,24 @@ export function toolActivity(toolName: string, running: boolean): string {
 
 /** The whole line: "Marvi is reading a file", "Marvi searched the web". */
 export function toolSentence(toolName: string, running: boolean): string {
+  if ($interfaceLocale.get() === 'ar') {
+    const activity: Record<string, readonly [string, string]> = {
+      web_search: ['تبحث في الويب', 'بحثت في الويب'],
+      browser_open: ['تتصفح الويب', 'تصفحت الويب'],
+      browser_action: ['تستخدم المتصفح', 'استخدمت المتصفح'],
+      browser_control: ['تستخدم المتصفح', 'استخدمت المتصفح'],
+      computer_action: ['تستخدم الحاسوب', 'استخدمت الحاسوب'],
+      computer_control: ['تستخدم الحاسوب', 'استخدمت الحاسوب'],
+      file_read: ['تقرأ ملفًا', 'قرأت ملفًا'],
+      file_write: ['تكتب ملفًا', 'كتبت ملفًا'],
+      memory_search: ['تبحث في الذاكرة', 'بحثت في الذاكرة'],
+      memory_remember: ['تحفظ في الذاكرة', 'حفظت في الذاكرة'],
+      read_screen: ['تنظر إلى الشاشة', 'نظرت إلى الشاشة'],
+      send_email: ['ترسل بريدًا إلكترونيًا', 'أرسلت بريدًا إلكترونيًا'],
+      terminal_run: ['تشغّل أمرًا', 'شغّلت أمرًا']
+    }
+    const phrase = activity[toolName]?.[running ? 0 : 1]
+    return phrase ? `Marvi ${phrase}` : `Marvi ${running ? 'تستخدم' : 'استخدمت'} الأداة ${toolName}`
+  }
   return `${running ? 'Marvi is' : 'Marvi'} ${toolActivity(toolName, running)}`
 }

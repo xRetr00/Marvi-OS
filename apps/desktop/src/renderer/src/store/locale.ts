@@ -51,6 +51,39 @@ export function formatNumber(value: number, locale = $interfaceLocale.get()): st
   return new Intl.NumberFormat(locale === 'ar' ? 'ar-EG' : 'en-US').format(value)
 }
 
+export function formatDecimal(
+  value: number,
+  fractionDigits: number,
+  locale = $interfaceLocale.get()
+): string {
+  return new Intl.NumberFormat(locale === 'ar' ? 'ar-EG' : 'en-US', {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits
+  }).format(value)
+}
+
+export function formatCurrency(
+  value: number,
+  currency = 'USD',
+  locale = $interfaceLocale.get()
+): string {
+  return new Intl.NumberFormat(locale === 'ar' ? 'ar-EG' : 'en-US', {
+    style: 'currency',
+    currency
+  }).format(value)
+}
+
+export function interpolate(
+  message: string,
+  values: Record<string, string | number>,
+  locale = $interfaceLocale.get()
+): string {
+  return t(message, locale).replace(/\{([a-zA-Z]+)\}/g, (match, key: string) => {
+    const value = values[key]
+    return value === undefined ? match : typeof value === 'number' ? formatNumber(value, locale) : value
+  })
+}
+
 export function formatDate(
   value: Date | number,
   options: Intl.DateTimeFormatOptions,

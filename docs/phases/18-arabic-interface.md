@@ -33,10 +33,15 @@ On 2026-09-22, desktop typecheck, renderer build, `git diff --check`, and all
 
 ## Milestone 3 — Dynamic copy and formats
 
-- [ ] Localize dynamic renderer status and error copy.
-- [ ] Localize Gateway-written text displayed in the app.
-- [ ] Route remaining date, number, duration, and relative-time UI through the
+- [x] Localize dynamic renderer status and error copy.
+- [x] Localize Gateway-written text displayed in the app.
+- [x] Route remaining date, number, duration, and relative-time UI through the
       interface locale.
+
+Evidence: renderer-bound Gateway health copy, provider errors, tool activity,
+room diagnosis, usage, update, weather, memory, resource, schedule, and visitor
+formats are locale-aware. Focused behavior tests and desktop typecheck passed on
+2026-09-23.
 
 ## Milestone 4 — Direction and acceptance
 

@@ -1,4 +1,4 @@
-import { t } from '../store/locale'
+import { formatDate, formatNumber, t } from '../store/locale'
 import { Tr } from '../store/locale'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
@@ -81,9 +81,9 @@ export function LocationClock(): React.JSX.Element {
     <time
       className="titlebar-clock"
       dateTime={now.toISOString()}
-      title={`${now.toLocaleDateString(undefined, { timeZone: zone, dateStyle: 'full' })} · ${zone ?? 'System time'}`}
+      title={`${formatDate(now, { timeZone: zone, dateStyle: 'full' })} · ${zone ?? t('System time')}`}
     >
-      {now.toLocaleTimeString(undefined, {
+      {formatDate(now, {
         timeZone: zone,
         hour: '2-digit',
         minute: '2-digit',
@@ -456,7 +456,7 @@ export function LocationWeather(): React.JSX.Element {
                     <Tr text={'°C'} />
                   </small>
                 </strong>
-                <p>{weatherLabel(data.current.weather_code)}</p>
+                <p>{t(weatherLabel(data.current.weather_code))}</p>
               </div>
               <div className="weather-context">
                 <span>{place?.label}</span>
@@ -481,7 +481,7 @@ export function LocationWeather(): React.JSX.Element {
                   <span>
                     {i === 0
                       ? 'Today'
-                      : new Date(`${day}T12:00:00`).toLocaleDateString(undefined, {
+                      : formatDate(new Date(`${day}T12:00:00`), {
                           weekday: 'short'
                         })}
                   </span>
@@ -595,9 +595,9 @@ export function LocationWeather(): React.JSX.Element {
           {place?.accuracy_m != null && (
             <small>
               {place.coarse ? 'Approximate · your internet provider' : place.source} · ±
-              {Math.round(place.accuracy_m).toLocaleString()} <Tr text={'m ·'} before />{' '}
+              {formatNumber(Math.round(place.accuracy_m))} <Tr text={'m ·'} before />{' '}
               {place.timestamp
-                ? new Date(place.timestamp * 1000).toLocaleTimeString([], {
+                ? formatDate(place.timestamp * 1000, {
                     hour: '2-digit',
                     minute: '2-digit'
                   })

@@ -1,4 +1,4 @@
-import { t } from '../store/locale'
+import { formatCurrency, formatNumber, interpolate, t } from '../store/locale'
 import { Tr } from '../store/locale'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Activity, BookOpenText, CalendarDays, RefreshCw, Server } from 'lucide-react'
@@ -12,14 +12,12 @@ import { buildUsageCells, usageMonthLabels, type UsageRange } from './usage-heat
 import { tokenTale } from './token-tale'
 
 function count(value: number): string {
-  return new Intl.NumberFormat('en', {
-    notation: value >= 100_000 ? 'compact' : 'standard'
-  }).format(value)
+  return value >= 100_000 ? new Intl.NumberFormat(undefined, { notation: 'compact' }).format(value) : formatNumber(value)
 }
 
 function money(value: number | null | undefined, currency = 'USD'): string {
   if (value == null || !Number.isFinite(value)) return '—'
-  return new Intl.NumberFormat('en', { style: 'currency', currency }).format(value)
+  return formatCurrency(value, currency)
 }
 
 const RANGES: Array<{ id: UsageRange; label: string }> = [
@@ -168,7 +166,7 @@ function UsageCell({
 }: {
   cell: ReturnType<typeof buildUsageCells>[number]
 }): React.JSX.Element {
-  const tooltip = `${cell.label} UTC · ${cell.billable.toLocaleString()} billable tokens`
+  const tooltip = interpolate('{label} UTC · {count} billable tokens', { label: cell.label, count: cell.billable })
   return (
     <span
       aria-label={tooltip}

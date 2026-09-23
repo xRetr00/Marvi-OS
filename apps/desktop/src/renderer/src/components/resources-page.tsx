@@ -1,4 +1,4 @@
-import { t } from '../store/locale'
+import { formatDate, formatDecimal, formatNumber, formatRelative, interpolate, t } from '../store/locale'
 import { Tr } from '../store/locale'
 /**
  * What Marvi is costing this machine, and what she was doing at the time.
@@ -32,18 +32,18 @@ import type {
 /** Megabytes as something a person reads without counting digits. */
 function size(mb: number | null | undefined): string {
   if (mb === null || mb === undefined) return '—'
-  return mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${Math.round(mb)} MB`
+  return mb >= 1024 ? `${formatDecimal(mb / 1024, 1)} GB` : `${formatNumber(Math.round(mb))} MB`
 }
 
 function ago(at: number): string {
   const seconds = Math.max(0, Date.now() / 1000 - at)
-  if (seconds < 90) return `${Math.round(seconds)}s ago`
-  if (seconds < 5400) return `${Math.round(seconds / 60)}m ago`
-  return `${(seconds / 3600).toFixed(1)}h ago`
+  if (seconds < 90) return formatRelative(-Math.round(seconds), 'second')
+  if (seconds < 5400) return formatRelative(-Math.round(seconds / 60), 'minute')
+  return formatRelative(-Math.round(seconds / 3600), 'hour')
 }
 
 function moment(at: number): string {
-  return new Date(at * 1000).toLocaleTimeString(undefined, {
+  return formatDate(at * 1000, {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit'
@@ -136,7 +136,7 @@ export function ResourcesPage(): React.JSX.Element {
           </h1>
           <p>
             {readings.length > 0
-              ? `${readings.length} readings, oldest ${ago(readings[0].at)}`
+              ? interpolate('{value} readings, oldest {age}', { value: readings.length, age: ago(readings[0].at) })
               : 'Waiting for the first reading.'}
           </p>
         </div>
@@ -199,7 +199,7 @@ function Holding({ latest }: { latest: ResourceReading }): React.JSX.Element {
           value={`${Math.round(latest.processes.reduce((sum, one) => sum + one.cpu_percent, 0))}%`}
         />
         <Band
-          detail={`${latest.disk_free_gb.toFixed(0)} GB free`}
+          detail={interpolate('{value} GB free', { value: Math.round(latest.disk_free_gb) })}
           icon={<HardDrive aria-hidden="true" />}
           label={t('Read from disk')}
           share={0}

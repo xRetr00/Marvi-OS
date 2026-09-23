@@ -1,4 +1,5 @@
 import type { ChatContext } from '../../../shared/runtime'
+import { formatDecimal, formatNumber } from '../store/locale'
 
 export interface ContextSegment {
   id: 'prompt' | 'cached' | 'reserve' | 'available'
@@ -69,11 +70,11 @@ export function compactTokens(value: number): string {
   value = safe(value)
   if (value >= 1_000_000) {
     const scaled = value / 1_000_000
-    return `${scaled.toFixed(scaled >= 10 || Number.isInteger(scaled) ? 0 : 1)}m`
+    return `${formatDecimal(scaled, scaled >= 10 || Number.isInteger(scaled) ? 0 : 1)}m`
   }
   if (value >= 1_000) {
     const scaled = value / 1_000
-    return `${scaled.toFixed(scaled >= 10 || Number.isInteger(scaled) ? 0 : 1)}k`
+    return `${formatDecimal(scaled, scaled >= 10 || Number.isInteger(scaled) ? 0 : 1)}k`
   }
-  return value.toLocaleString()
+  return formatNumber(value)
 }

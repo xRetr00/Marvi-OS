@@ -1,4 +1,4 @@
-import { t } from '../store/locale'
+import { formatNumber, t } from '../store/locale'
 import { Tr } from '../store/locale'
 /**
  * Cron jobs as things with a next time, rather than rows in a registry.
@@ -106,7 +106,7 @@ export function ScheduleCards({
                 <Tr text={'ran'} after />
                 {row.last_run.slice(0, 16).replace('T', ' ')}
                 {row.completed_runs > 1 ? ` · ${row.completed_runs} times` : ''}
-                {row.last_tokens ? ` · ${row.last_tokens.toLocaleString()} tokens` : ''}
+                {row.last_tokens ? ` · ${formatNumber(row.last_tokens)} ${t('tokens')}` : ''}
               </p>
             ) : (
               <p className="sched-outcome is-quiet">

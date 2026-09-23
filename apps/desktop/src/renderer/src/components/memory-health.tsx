@@ -1,4 +1,4 @@
-import { Tr } from '../store/locale'
+import { formatDate, Tr } from '../store/locale'
 /**
  * Where Marvi's memories came from, and which of them are not memories.
  *
@@ -59,8 +59,8 @@ function shortSource(source: string): string {
 function when(at: string): string {
   const moment = new Date(at)
   const today = moment.toDateString() === new Date().toDateString()
-  return moment.toLocaleString(
-    undefined,
+  return formatDate(
+    moment,
     today
       ? { hour: '2-digit', minute: '2-digit' }
       : { weekday: 'short', hour: '2-digit', minute: '2-digit' }

@@ -1,4 +1,4 @@
-import { t } from '../store/locale'
+import { formatDate, t } from '../store/locale'
 import { Tr } from '../store/locale'
 /**
  * The photographs of somebody who was in the room while you were not.
@@ -56,7 +56,7 @@ export interface VisitorSighting {
 function localMoment(iso: string): string {
   const at = new Date(iso)
   if (Number.isNaN(at.getTime())) return iso
-  return at.toLocaleString(undefined, {
+  return formatDate(at, {
     weekday: 'short',
     day: 'numeric',
     month: 'short',

@@ -1,4 +1,5 @@
 import { atom } from 'nanostores'
+import { formatNumber } from './locale'
 
 import type { ProviderPage } from '../../../shared/runtime'
 
@@ -80,9 +81,9 @@ export function sessionTimingStats(
   metrics: SessionMetrics
 ): Array<{ label: string; value: string }> {
   return [
-    { label: 'TOKENS', value: metrics.ready ? metrics.billableTokens.toLocaleString() : '—' },
-    { label: 'TURNS', value: String(metrics.chatTurns + metrics.voiceTurns) },
-    { label: 'LAST', value: metrics.lastLatencyMs === null ? '—' : `${metrics.lastLatencyMs}ms` },
+    { label: 'TOKENS', value: metrics.ready ? formatNumber(metrics.billableTokens) : '—' },
+    { label: 'TURNS', value: formatNumber(metrics.chatTurns + metrics.voiceTurns) },
+    { label: 'LAST', value: metrics.lastLatencyMs === null ? '—' : `${formatNumber(metrics.lastLatencyMs)}ms` },
     { label: 'SESSION', value: formatSessionDuration(metrics.elapsedMs) }
   ]
 }

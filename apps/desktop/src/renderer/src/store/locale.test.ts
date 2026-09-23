@@ -4,8 +4,10 @@ import { createElement } from 'react'
 import {
   applyInterfaceLocale,
   formatDate,
+  formatDecimal,
   formatNumber,
   formatRelative,
+  interpolate,
   setInterfaceLocale,
   Tr,
   syncLocaleStorage,
@@ -39,6 +41,8 @@ describe('interface locale', () => {
       '٢٠٢٦'
     )
     expect(formatRelative(-2, 'day', 'ar')).toBe('أول أمس')
+    expect(formatDecimal(1.5, 1, 'ar')).toContain('١')
+    expect(interpolate('{count} learned', { count: 12 }, 'ar')).toBe('تعلّم ١٢')
   })
 
   it('renders extracted labels in Arabic while preserving inline spacing', () => {

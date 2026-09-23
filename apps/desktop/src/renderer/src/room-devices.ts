@@ -16,6 +16,8 @@
  * beneath it.
  */
 
+import { interpolate, t } from './store/locale'
+
 export interface DeviceHealth {
   /** From `room_health`. Whether an address and key are configured. */
   configured?: unknown
@@ -39,21 +41,21 @@ export function deviceStory(
   counters: DeviceCounters
 ): string {
   if (driver) {
-    return `${driver} is not installed, so this cannot be reached at all. Nothing below is about the device.`
+    return interpolate('{driver} is not installed, so this cannot be reached at all. Nothing below is about the device.', { driver })
   }
   if (!device.configured) {
-    return 'No address or key configured for it yet.'
+    return t('No address or key configured for it yet.')
   }
   if (counters.circuit_open) {
-    const failures = Number(counters.consecutive_failures ?? 0).toLocaleString()
+    const failures = Number(counters.consecutive_failures ?? 0)
     // Switched off at the wall is a normal thing to do to a lamp, not a fault
     // to be alarmed by, and the sidecar picks it up again on its own.
-    return `Not reachable — stopped trying after ${failures} attempts. Switched off at the wall counts, and it will pick up again by itself.`
+    return interpolate('Not reachable — stopped trying after {failures} attempts. Switched off at the wall counts, and it will pick up again by itself.', { failures })
   }
   if (device.ip) {
     return String(device.ip)
   }
-  return 'Configured, and nothing has answered yet.'
+  return t('Configured, and nothing has answered yet.')
 }
 
 /** The pill beside it: three states, and "no driver" is not an error. */
@@ -63,7 +65,7 @@ export function deviceTone(driver: string, device: DeviceHealth): 'neutral' | 'r
 }
 
 export function deviceStanding(driver: string, device: DeviceHealth): string {
-  if (driver) return 'no driver'
-  if (!device.configured) return 'not set up'
-  return device.online ? 'online' : 'offline'
+  if (driver) return t('no driver')
+  if (!device.configured) return t('not set up')
+  return t(device.online ? 'online' : 'offline')
 }

@@ -49,19 +49,25 @@ export interface TokenTale {
 export function tokenTale(tokens: number): TokenTale {
   const amount = Number.isFinite(tokens) ? Math.max(0, Math.round(tokens)) : 0
   if (!amount)
+    if ($interfaceLocale.get() === 'ar')
+      return { lead: 'بطاقة المكتبة لم تُستخدم بعد.', aside: 'شغّل شيئًا مثيرًا للاهتمام.' }
+  if (!amount)
     return { lead: 'The library card is untouched.', aside: 'Run something interesting.' }
   const book = [...BOOKS].reverse().find((item) => amount >= item.tokens)
   if (!book)
     return {
-      lead: `${amount.toLocaleString()} tokens used.`,
-      aside: 'Enough to make a picture book nervous.'
+      lead: $interfaceLocale.get() === 'ar' ? `استُخدم ${formatNumber(amount)} رمزًا.` : `${formatNumber(amount)} tokens used.`,
+      aside: $interfaceLocale.get() === 'ar' ? 'يكفي لإرباك كتاب مصوّر.' : 'Enough to make a picture book nervous.'
     }
   const multiple = amount / book.tokens
   const formatted =
     multiple >= 100
-      ? Math.round(multiple).toLocaleString()
+      ? formatNumber(Math.round(multiple))
       : multiple >= 10
-        ? multiple.toFixed(1)
-        : multiple.toFixed(2)
+        ? formatDecimal(multiple, 1)
+        : formatDecimal(multiple, 2)
+  if ($interfaceLocale.get() === 'ar')
+    return { lead: `استخدمت نحو ${formatted}× من رموز كتاب ${book.title}.`, aside: book.aside }
   return { lead: `You used about ${formatted}× the tokens in ${book.title}.`, aside: book.aside }
 }
+import { $interfaceLocale, formatDecimal, formatNumber } from '../store/locale'

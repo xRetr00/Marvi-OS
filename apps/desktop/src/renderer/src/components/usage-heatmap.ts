@@ -119,7 +119,7 @@ export function usageMonthLabels(cells: UsageCell[]): Array<{ column: number; la
   cells.forEach((cell, index) => {
     if (!cell.inRange) return
     const value = new Date(`${cell.key}T00:00:00Z`)
-    const month = value.toLocaleString('en', { month: 'short', timeZone: 'UTC' })
+    const month = formatDate(value, { month: 'short', timeZone: 'UTC' })
     if (month !== last) {
       const column = Math.floor(index / 7) + 1
       if (!labels.length || column - labels[labels.length - 1].column >= 3)
@@ -129,3 +129,4 @@ export function usageMonthLabels(cells: UsageCell[]): Array<{ column: number; la
   })
   return labels
 }
+import { formatDate } from '../store/locale'

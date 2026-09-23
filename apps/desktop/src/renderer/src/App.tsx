@@ -137,7 +137,8 @@ import {
 } from './components/capabilities/capability-library'
 import { ContextStatus } from './chat/components/ContextStatus'
 import { $chatContextStatus } from './store/chat-context'
-import { $interfaceLocale, setInterfaceLocale, t } from './store/locale'
+import { $interfaceLocale, formatDate, interpolate, setInterfaceLocale, t } from './store/locale'
+import { gatewayCopy } from './store/gateway-copy'
 import { $recognisers, chooseRecogniser, refreshRecognisers } from './store/recognisers'
 
 function stateTone(state: string | undefined): 'neutral' | 'ready' | 'warning' | 'danger' {
@@ -667,21 +668,21 @@ function MainSurface(): React.JSX.Element {
       <div className="statusbar-side">
         <div className="status-health-cluster" aria-label={t('Service health')}>
           <StatusHealthItem
-            detail={runtime.components.gateway?.detail}
+            detail={gatewayCopy(runtime.components.gateway?.detail)}
             icon={Server}
             label={t('Gateway')}
             onOpen={() => navigate('Overview')}
             state={runtime.state}
           />
           <StatusHealthItem
-            detail={runtime.components.livekit?.detail}
+            detail={gatewayCopy(runtime.components.livekit?.detail)}
             icon={Radio}
             label={t('RTC')}
             onOpen={() => navigate('Voice')}
             state={runtime.components.livekit?.state}
           />
           <StatusHealthItem
-            detail={runtime.components.voice?.detail}
+            detail={gatewayCopy(runtime.components.voice?.detail)}
             icon={Waves}
             label={t('Voice')}
             onOpen={() => navigate('Voice')}
@@ -890,11 +891,11 @@ function MainSurface(): React.JSX.Element {
                     <VoiceStatus
                       blocker={
                         runtime.components.gateway?.state !== 'ready'
-                          ? runtime.components.gateway?.detail
+                          ? gatewayCopy(runtime.components.gateway?.detail)
                           : runtime.components.voice?.state !== 'ready'
-                            ? runtime.components.voice?.detail
+                            ? gatewayCopy(runtime.components.voice?.detail)
                             : runtime.components.livekit?.state !== 'ready'
-                              ? runtime.components.livekit?.detail
+                              ? gatewayCopy(runtime.components.livekit?.detail)
                               : ''
                       }
                       link={voiceLink}
@@ -1008,9 +1009,9 @@ function StatusHealthItem({
   const tone = stateTone(state)
   const readableState = state || 'unknown'
   return (
-    <UiTooltip label={detail || `${label} is ${readableState}`} side="top">
+    <UiTooltip label={detail || interpolate('{label} is {state}', { label, state: t(readableState) })} side="top">
       <button
-        aria-label={`${label} ${readableState}`}
+        aria-label={`${label} ${t(readableState)}`}
         className="status-item status-health"
         onClick={onOpen}
         type="button"
@@ -1039,9 +1040,9 @@ function VoiceLevelMeter({ level }: { level: number }): React.JSX.Element {
   const blocks = '█'.repeat(full) + partialGlyph + '░'.repeat(cells - full - (partialGlyph ? 1 : 0))
   const percentage = Math.round(value * 100)
   return (
-    <UiTooltip label={`Live voice level · ${percentage}%`} side="top">
+    <UiTooltip label={interpolate('Live voice level · {value}%', { value: percentage })} side="top">
       <span
-        aria-label={`Voice level ${percentage}%`}
+        aria-label={interpolate('Voice level {value}%', { value: percentage })}
         aria-valuemax={100}
         aria-valuemin={0}
         aria-valuenow={percentage}
@@ -1174,7 +1175,7 @@ function RoomPanel({
     })
     setSnapshot(response.result)
     setError(null)
-    setLastRoomRefresh(new Date().toLocaleTimeString([], { hour12: false }))
+    setLastRoomRefresh(formatDate(new Date(), { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }))
   }, [])
 
   useEffect(() => {
@@ -1460,7 +1461,7 @@ function RoomPanel({
   const pageComponent = view === 'vision' ? runtime.components.vision : runtime.components.room
   const pageState = pageComponent?.state ?? 'offline'
   const pageDetail =
-    pageComponent?.detail ??
+    gatewayCopy(pageComponent?.detail) ||
     (view === 'vision' ? 'Room camera processing unavailable' : 'Smart Room unavailable')
 
   return (
@@ -7017,20 +7018,18 @@ function AboutPanel({
  */
 function facesFacts(person: FaceLibrary['people'][number]): string {
   const facts: string[] = []
-  if (person.learned) facts.push(`${person.learned} learned`)
+  if (person.learned) facts.push(interpolate('{count} learned', { count: person.learned }))
   if (person.last_seen) {
     const seen = new Date(person.last_seen)
     if (!Number.isNaN(seen.getTime())) {
       const today = seen.toDateString() === new Date().toDateString()
-      facts.push(
-        `seen ${seen.toLocaleString(undefined, today ? { hour: '2-digit', minute: '2-digit' } : { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`
-      )
+      facts.push(interpolate('seen {time}', { time: formatDate(seen, today ? { hour: '2-digit', minute: '2-digit' } : { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) }))
     }
   } else {
-    facts.push('not seen yet')
+    facts.push(t('not seen yet'))
   }
   if (typeof person.consistency === 'number') {
-    facts.push(`consistency ${Math.round(person.consistency * 100)}%`)
+    facts.push(interpolate('consistency {value}%', { value: Math.round(person.consistency * 100) }))
   }
   return facts.join(' · ')
 }

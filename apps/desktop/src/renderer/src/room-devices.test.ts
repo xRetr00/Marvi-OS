@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { deviceStanding, deviceStory, deviceTone } from './room-devices'
+import { setInterfaceLocale } from './store/locale'
 
 describe('what to say about a device that is not working', () => {
   it('says the missing driver first and stops there', () => {
@@ -58,5 +59,16 @@ describe('what to say about a device that is not working', () => {
     expect(deviceTone('', { configured: true, online: true })).toBe('ready')
     expect(deviceTone('', { configured: true, online: false })).toBe('danger')
     expect(deviceTone('', { configured: false })).toBe('neutral')
+  })
+
+  it('shows localized diagnosis and localized attempt count', () => {
+    setInterfaceLocale('ar')
+    try {
+      expect(deviceStory('', { configured: true }, { circuit_open: true, consecutive_failures: 12 }))
+        .toContain('١٢')
+      expect(deviceStanding('tinytuya', {})).toBe('لا توجد مكتبة تشغيل')
+    } finally {
+      setInterfaceLocale('en')
+    }
   })
 })

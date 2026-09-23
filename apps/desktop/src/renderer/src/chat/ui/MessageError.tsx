@@ -1,4 +1,4 @@
-import { Tr } from '../../store/locale'
+import { Tr, t } from '../../store/locale'
 import { ActionBarPrimitive, MessagePrimitive } from '@assistant-ui/react'
 import { AbstractIcon } from '../../components/abstract-icon'
 import { describeFailure } from './describeFailure'
@@ -10,14 +10,14 @@ export function MessageError({ error }: { error: string }): React.JSX.Element {
       <div className="chat-failure" role="alert">
         <AbstractIcon name="about" size={16} />
         <div className="chat-failure-content">
-          <strong>{failure.title}</strong>
-          <p>{failure.detail}</p>
+          <strong>{t(failure.title)}</strong>
+          <p dir="auto">{t(failure.detail)}</p>
           {failure.technical !== failure.detail ? (
             <details>
               <summary>
                 <Tr text={'Technical details'} />
               </summary>
-              <pre>{failure.technical}</pre>
+              <pre dir="ltr">{failure.technical}</pre>
             </details>
           ) : null}
         </div>

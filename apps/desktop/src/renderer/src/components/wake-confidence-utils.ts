@@ -6,6 +6,7 @@
  * `model-picker-utils.ts` is split for the same reason.
  */
 import type { StreamEntry } from './ui/data-stream'
+import { formatDate } from '../store/locale'
 
 /** The floor and ceiling the listener itself accepts.
  *
@@ -41,7 +42,7 @@ export function asEntries(
     .map((one) => {
       const woke = one.confidence >= threshold
       return {
-        timestamp: new Date(one.at * 1000).toLocaleTimeString(),
+        timestamp: formatDate(one.at * 1000, { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
         text: woke ? 'woke her' : 'below the line',
         tone: woke ? ('warning' as const) : ('info' as const),
         hint: readable(one.confidence)

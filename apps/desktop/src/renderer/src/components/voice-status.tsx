@@ -12,6 +12,7 @@
  * the reason nothing is working.
  */
 import type { AssistantState, ComponentStatus } from '../../../shared/runtime'
+import { t } from '../store/locale'
 
 export interface VoiceStatusProps {
   voice: AssistantState
@@ -49,11 +50,11 @@ export function VoiceStatus({
 
   return (
     <span className="topbar-state voice-status" data-phase={phase}>
-      <span className={`voice-hud-phase phase-${phase}`}>{word}</span>
-      <span className="voice-status-line">{line}</span>
+      <span className={`voice-hud-phase phase-${phase}`}>{t(word)}</span>
+      <span className="voice-status-line">{t(line)}</span>
       {/* Only when it has something to say. A permanent empty slot in a header
           is furniture, and this one is meant to be read when it appears. */}
-      {blocker ? <span className="voice-status-blocker">{blocker}</span> : null}
+      {blocker ? <span className="voice-status-blocker" dir="auto">{t(blocker)}</span> : null}
     </span>
   )
 }

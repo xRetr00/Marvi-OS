@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { toolActivity, toolSentence } from './tool-verbs'
+import { setInterfaceLocale } from '../../store/locale'
 
 /**
  * Every one of these is a real registered tool name, taken from the Gateway's
@@ -61,6 +62,17 @@ describe('toolSentence', () => {
   it('never produces an empty sentence', () => {
     for (const name of ['', '   ', '___', 'k']) {
       expect(toolSentence(name, true).length).toBeGreaterThan('Marvi is '.length)
+    }
+  })
+
+  it('describes known and unknown tool activity in Arabic', () => {
+    setInterfaceLocale('ar')
+    try {
+      expect(toolSentence('web_search', true)).toBe('Marvi تبحث في الويب')
+      expect(toolSentence('file_read', false)).toBe('Marvi قرأت ملفًا')
+      expect(toolSentence('acme_widgetise', true)).toContain('acme_widgetise')
+    } finally {
+      setInterfaceLocale('en')
     }
   })
 })

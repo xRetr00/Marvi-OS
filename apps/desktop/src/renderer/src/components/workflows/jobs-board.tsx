@@ -1,4 +1,4 @@
-import { t } from '../../store/locale'
+import { formatNumber, t } from '../../store/locale'
 import { Tr } from '../../store/locale'
 /**
  * The board: every job Marvi is doing, has done, or is stuck on.
@@ -205,7 +205,7 @@ function JobDrawer({
                   <span className="wf-run-reason">{run.exit_reason || 'running'}</span>
                   {run.summary ? <span className="wf-run-summary">{run.summary}</span> : null}
                   {run.tokens ? (
-                    <span className="wf-run-tokens">{run.tokens.toLocaleString()}</span>
+                    <span className="wf-run-tokens">{formatNumber(run.tokens)}</span>
                   ) : null}
                 </li>
               ))}
