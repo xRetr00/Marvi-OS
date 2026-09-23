@@ -54,6 +54,10 @@ export type UiPart =
   /** Commentary: text written between tool calls. A `data-` part so it can be
    * grouped with the work rather than rendered as the answer. */
   | { type: 'data-commentary'; data: { text: string } }
+  | {
+      type: 'data-prompt-progress'
+      data: { percent: number; total: number; cached: number; processed: number }
+    }
   | { type: 'source'; sourceType: 'url'; id: string; url: string; title?: string }
   | { type: 'image'; image: string; filename?: string }
   | { type: 'file'; filename?: string; data: string; mimeType: string }
@@ -175,6 +179,16 @@ function convertPart(part: ChatPart, message: ChatMessage, index: number): UiPar
               : {})
           }
         : null
+    case 'prompt_progress':
+      return {
+        type: 'data-prompt-progress',
+        data: {
+          percent: part.percent,
+          total: part.total,
+          cached: part.cached,
+          processed: part.processed
+        }
+      }
     case 'commentary':
       return part.text.trim() ? { type: 'data-commentary', data: { text: part.text } } : null
     case 'ask':

@@ -29,6 +29,33 @@ import { CommentaryStep, ThoughtStep, ToolStep, WorkLog } from './WorkLog'
 
 type Content = MessageState['content'][number]
 
+function PromptProgress({
+  percent,
+  total,
+  cached,
+  processed
+}: {
+  percent: number
+  total: number
+  cached: number
+  processed: number
+}): React.JSX.Element {
+  const evaluated = Math.max(0, processed - cached)
+  const target = Math.max(0, total - cached)
+  return (
+    <div className="chat-scaffold chat-prompt-progress" data-conversation-scaffold="">
+      <div className="chat-prompt-progress-heading">
+        <GlyphSpinner ariaLabel="Processing prompt" className="chat-working-spinner" />
+        <ActivityLabel live text={`Processing prompt ${Math.round(percent)}%`} />
+      </div>
+      <small>
+        {evaluated.toLocaleString()} / {target.toLocaleString()} prompt tokens
+        {cached ? ` · ${cached.toLocaleString()} cached` : ''}
+      </small>
+    </div>
+  )
+}
+
 /** What the header says while the work runs: the step happening right now. */
 function currentActivity(part: Content | undefined): string {
   if (!part) return 'Marvi is working'
@@ -71,7 +98,26 @@ export function AssistantParts({ message }: { message: MessageState }): React.JS
             ) : null
 
           case 'data': {
-            const text = (part.data as { text?: string } | undefined)?.text ?? ''
+            const data = part.data as
+              | {
+                  text?: string
+                  percent?: number
+                  total?: number
+                  cached?: number
+                  processed?: number
+                }
+              | undefined
+            const text = data?.text ?? ''
+            if (part.name === 'prompt-progress') {
+              return (
+                <PromptProgress
+                  cached={data?.cached ?? 0}
+                  percent={data?.percent ?? 0}
+                  processed={data?.processed ?? 0}
+                  total={data?.total ?? 0}
+                />
+              )
+            }
             return part.name === 'commentary' && text.trim() ? <CommentaryStep text={text} /> : null
           }
 

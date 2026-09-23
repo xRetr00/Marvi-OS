@@ -62,6 +62,18 @@ function askPart(ask: Event): ChatAskPart {
  * sends something new never corrupts what is already on screen.
  */
 export function foldEvent(parts: ChatPart[], event: Event): ChatPart[] {
+  if (event.prompt_progress && typeof event.prompt_progress === 'object') {
+    const progress = event.prompt_progress as Event
+    const next: ChatPart = {
+      type: 'prompt_progress',
+      percent: Math.max(0, Math.min(100, Number(progress.percent) || 0)),
+      total: Math.max(0, Number(progress.total) || 0),
+      cached: Math.max(0, Number(progress.cached) || 0),
+      processed: Math.max(0, Number(progress.processed) || 0)
+    }
+    const tail = last(parts)
+    return tail?.type === 'prompt_progress' ? [...parts.slice(0, -1), next] : [...parts, next]
+  }
   if (typeof event.reasoning === 'string') return extend(parts, 'reasoning', event.reasoning)
   if (typeof event.delta === 'string') return extend(parts, 'text', event.delta)
 

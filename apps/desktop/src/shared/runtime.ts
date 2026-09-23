@@ -919,6 +919,13 @@ export type ChatPart =
   | ChatToolPart
   /** A round's thinking, in the order it happened relative to the tools. */
   | { type: 'reasoning'; text: string }
+  | {
+      type: 'prompt_progress'
+      percent: number
+      total: number
+      cached: number
+      processed: number
+    }
   /** Text written between tool calls -- "let me check the logs" -- which is
    * part of the work, not part of the answer. */
   | { type: 'commentary'; text: string }

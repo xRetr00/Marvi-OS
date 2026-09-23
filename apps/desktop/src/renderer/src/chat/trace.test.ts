@@ -9,6 +9,23 @@ function run(events: Array<Record<string, unknown>>): ChatPart[] {
 }
 
 describe('foldEvent', () => {
+  it('keeps local prompt progress separate from answer text', () => {
+    const parts = run([
+      { prompt_progress: { percent: 50, total: 12000, cached: 3000, processed: 7500 } },
+      { prompt_progress: { percent: 100, total: 12000, cached: 3000, processed: 12000 } },
+      { delta: 'Done.' }
+    ])
+
+    expect(parts[0]).toEqual({
+      type: 'prompt_progress',
+      percent: 100,
+      total: 12000,
+      cached: 3000,
+      processed: 12000
+    })
+    expect(answerText(parts)).toBe('Done.')
+  })
+
   it('keeps a turn in the order it happened', () => {
     // The shape of a real tool-using turn: think, say something, call a tool,
     // think again, answer. It used to collapse to "thinking" + "answer".
