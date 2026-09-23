@@ -335,7 +335,7 @@ class Announcer:
         """
         import sys
 
-        if not self.enabled() or "pytest" in sys.modules:
+        if "pytest" in sys.modules or not self.enabled():
             return False
         try:
             self._ensure_model()
