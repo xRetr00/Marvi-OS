@@ -1168,6 +1168,7 @@ def create_app(
     one_shot = announcer_service or Announcer()
     resource_mode_lock = threading.Lock()
     resource_mode_active = False
+    full_resource_mode_active = False
 
     def resource_state() -> dict[str, Any]:
         if focus is None:
@@ -1177,17 +1178,54 @@ def create_app(
                 "app": "",
                 "by_hand": False,
                 "automatic": False,
+                "full_low_resource": False,
             }
         return focus.as_dict()
 
+    def set_room_runtime_suspended(suspended: bool) -> None:
+        """Stop or restore the plugin-owned Smart Room process.
+
+        The lifecycle hook is the process-owner boundary: it stops the crash
+        supervisor before terminating the runtime, so the process cannot be
+        immediately respawned. A postcondition check prevents the UI from
+        claiming the room and vision models are closed while the child lives.
+        """
+        plugin = next(
+            (item for item in loaded_plugins if item.name == room_module.PLUGIN_NAME),
+            None,
+        )
+        if plugin is None:
+            return
+        event = "on_gateway_stop" if suspended else "on_gateway_start"
+        problems = plugins_module.fire(plugin, event)
+        if problems:
+            raise RuntimeError("; ".join(problems))
+        manager = getattr(plugin.module, "process_manager", None)
+        status = getattr(manager, "status", None)
+        if suspended and callable(status):
+            current = status()
+            if current.get("alive"):
+                raise RuntimeError(
+                    f"Smart Room runtime process {current.get('pid', 'unknown')} did not stop"
+                )
+
     def sync_resource_mode(state: dict[str, Any] | None = None) -> dict[str, Any]:
         """Apply the voice resource boundary once per low-resource transition."""
-        nonlocal resource_mode_active
+        nonlocal resource_mode_active, full_resource_mode_active
         current = state or resource_state()
         low = bool(current.get("low_resource"))
+        full = bool(current.get("full_low_resource"))
         with resource_mode_lock:
             changed = low != resource_mode_active
+            full_changed = full != full_resource_mode_active
             resource_mode_active = low
+            full_resource_mode_active = full
+        if full_changed:
+            set_room_runtime_suspended(full)
+            get_logger("plugins").info(
+                "Smart Room %s for full low-resource mode",
+                "stopped" if full else "restored",
+            )
         if not changed:
             return current
         if low:
@@ -1828,6 +1866,11 @@ def create_app(
         return ComponentStatus(state="ready" if live else "error", detail=detail)
 
     def room_status() -> ComponentStatus:
+        if resource_state().get("full_low_resource"):
+            return ComponentStatus(
+                state="offline",
+                detail="Smart Room closed by full low-resource mode",
+            )
         if sidecar is None:
             return ComponentStatus(state="offline", detail="sidecar not connected")
         state, detail = sidecar.status()
@@ -1855,6 +1898,11 @@ def create_app(
 
     def vision_status() -> ComponentStatus:
         """Report the camera state published by the Smart Room sidecar."""
+        if resource_state().get("full_low_resource"):
+            return ComponentStatus(
+                state="offline",
+                detail="Vision closed by full low-resource mode",
+            )
         if sidecar is None:
             return ComponentStatus(state="offline", detail="Smart Room sidecar not connected")
         snapshot = sidecar.snapshot() or {}
@@ -2223,8 +2271,25 @@ def create_app(
         if focus is None:
             return {"low_resource": False, "because": "", "app": ""}
         body = await request.json()
-        state = focus.hold(bool(body.get("low_resource")))
-        await run_in_threadpool(sync_resource_mode, state)
+        previous = focus.as_dict()
+        state = focus.hold(
+            bool(body.get("low_resource")),
+            shutdown_room=bool(body.get("shutdown_room")),
+        )
+        try:
+            await run_in_threadpool(sync_resource_mode, state)
+        except Exception as exc:
+            # Do not advertise the full tier unless its process boundary was
+            # actually satisfied. Restore the prior manual selection too.
+            focus.hold(
+                bool(previous.get("by_hand")),
+                shutdown_room=bool(previous.get("full_low_resource")),
+            )
+            await run_in_threadpool(sync_resource_mode, previous)
+            raise HTTPException(
+                status_code=503,
+                detail=f"Could not close Smart Room and Vision: {str(exc)[:200]}",
+            ) from exc
         books.told(low_resource=state["low_resource"], busy_with=state.get("because", ""))
         # The room is told directly. It is paced on focus *transitions*, and a
         # hand-held mode is not one -- so without this the camera would carry
