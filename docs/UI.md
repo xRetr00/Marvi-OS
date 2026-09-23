@@ -1,12 +1,14 @@
 # UI Contract
 
-The control center offers an independent English/Arabic interface setting in
-Preferences. Arabic sets document language and RTL direction in both renderer
-windows. Chat paragraphs and inputs use automatic text direction; code and URL
-inputs remain left to right. Paths, URLs, filenames, provider names, model
+The control center offers independent language and layout-direction settings in
+Preferences. Direction defaults to Follow language, so Arabic keeps the fully
+mirrored RTL interface and English stays LTR. Explicit RTL or LTR overrides the
+shell direction without changing the language. In Arabic with an LTR shell,
+prose blocks keep RTL paragraph direction and Chat inputs use automatic text
+direction; code and URL inputs remain left to right. Paths, URLs, filenames, provider names, model
 identifiers, commit hashes, and other technical runs use isolated LTR spans so
 they cannot reorder surrounding Arabic prose. Speech language remains a separate
-setting. The locale preference persists and synchronizes between windows.
+setting. Both interface preferences persist and synchronize between windows.
 
 Chat's validated widget vocabulary includes receipt, cart, order status,
 booking, stay, and flight tracker cards. These six kinds require an evidence ID

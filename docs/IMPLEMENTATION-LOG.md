@@ -1,5 +1,14 @@
 # Implementation Log
 
+## 2026-09-23 — Independent interface direction
+
+- Added a persisted Follow language/RTL/LTR preference beside interface
+  language. Follow language preserves the shipped fully mirrored Arabic mode.
+- Explicit LTR retains the left-to-right application shell while Arabic prose,
+  Chat content, inputs, and isolated technical values keep correct BiDi behavior.
+- Direction synchronizes between the control center and Dynamic Island without
+  changing speech or memory settings.
+
 ## 2026-09-23 — Arabic RTL acceptance
 
 - Replaced the remaining physical edge colors with logical edges and mirrored

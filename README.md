@@ -24,9 +24,11 @@
 The desktop control center has an English/Arabic interface preference in
 Settings → Preferences. Arabic covers the control center, Chat, Dynamic Island,
 live health and tool status, errors, and locale-aware dates and numbers, with
-RTL layout and Arabic typography. Unknown technical diagnostics remain visible
-through the English fallback. This setting does not change speech recognition,
-voice synthesis, or memory storage.
+Arabic typography. Layout direction is independent: Follow language gives the
+fully mirrored RTL interface, while explicit LTR keeps the application shell
+left to right and preserves RTL Arabic/BiDi content. Unknown technical
+diagnostics remain visible through the English fallback. These settings do not
+change speech recognition, voice synthesis, or memory storage.
 
 Most assistants wait in a tab. Marvi stays close to what you are doing on Windows. Call her by voice or shortcut, ask naturally, and keep working. A compact **Dynamic Island** shows when she is listening, speaking, acting, or waiting for your approval. Open the control center when you want the full picture.
 

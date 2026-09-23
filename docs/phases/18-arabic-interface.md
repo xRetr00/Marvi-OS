@@ -54,3 +54,13 @@ Preferences, and Chat, plus the 640×320 confirmation Island. They are stored in
 `docs/evidence/arabic-rtl-*.png`. Desktop typecheck and production renderer
 build passed; all 615 desktop tests passed after retrying one Windows process
 ownership timeout, and 52 Gateway remembering tests passed on 2026-09-23.
+
+## Milestone 5 — Independent layout direction
+
+- [x] Keep Follow language as the default and preserve the complete Arabic RTL
+      layout.
+- [x] Add explicit RTL and LTR shell overrides, persisted and synchronized
+      independently from language.
+- [x] Keep Arabic prose RTL and technical runs isolated when Arabic uses an LTR
+      shell.
+- [x] Add behavior coverage and capture the Arabic LTR shell for review.
