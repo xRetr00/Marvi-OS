@@ -19,6 +19,7 @@ import React from 'react'
 
 import type { ScheduleRow } from '../../../shared/runtime'
 import { saysWhen, untilNext } from './schedule-time'
+import { TechnicalText } from './ui/technical-text'
 
 type Act = 'remove' | 'enable' | 'disable' | 'run'
 
@@ -91,7 +92,8 @@ export function ScheduleCards({
 
             {row.mode === 'agent' && (
               <p className="sched-how">
-                {row.provider || 'auto provider'} · {row.model || 'auto model'} ·{' '}
+                <TechnicalText>{row.provider || 'auto provider'}</TechnicalText> ·{' '}
+                <TechnicalText>{row.model || 'auto model'}</TechnicalText> ·{' '}
                 {row.tool_names.length ? `${row.tool_names.length} tools` : 'all tools'} ·{' '}
                 {row.delivery}
               </p>

@@ -7,6 +7,7 @@ import type { ModelCard, ModelProvider } from '../../../../shared/runtime'
 import { haptic } from '../../lib/haptics'
 import { modelContext, modelPrice } from '../model-labels'
 import { ModelBrandLogo } from './model-brand-logo'
+import { TechnicalText } from './technical-text'
 import { filterModelGroups, modelEffortChoices, modelEffortLabel } from './model-picker-utils'
 
 export interface ModelSelection {
@@ -270,7 +271,7 @@ export function ModelPicker({
                 <header className="model-picker-group-heading">
                   <strong>{provider.label}</strong>
                   <span>
-                    {provider.provider} · {models.length}
+                    <TechnicalText>{provider.provider}</TechnicalText> · {models.length}
                   </span>
                 </header>
                 {models.map((model) => {
@@ -377,7 +378,7 @@ function ModelOption({
         <ModelBrandLogo label={model.name} modelId={model.id} provider={provider} />
         <span className="model-picker-row-copy">
           <strong>{model.name}</strong>
-          {model.id !== model.name ? <small>{model.id}</small> : null}
+          {model.id !== model.name ? <small><TechnicalText>{model.id}</TechnicalText></small> : null}
         </span>
         {hint ? <span className="model-picker-row-hint">{hint}</span> : null}
         {model.reasons && showEffort ? (

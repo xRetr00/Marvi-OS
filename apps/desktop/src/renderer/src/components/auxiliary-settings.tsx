@@ -7,6 +7,7 @@ import type { AuxiliaryPage, AuxiliaryRole, ModelCard } from '../../../shared/ru
 import { ControlButton, ControlEmpty, ControlRow } from './control-surface'
 import { modelContext, modelPrice } from './model-labels'
 import { Picker } from './ui/picker'
+import { TechnicalText } from './ui/technical-text'
 
 /**
  * Which model does which job.
@@ -250,11 +251,11 @@ export function AuxiliarySettings(): React.JSX.Element {
                 {role.gain ? `${role.why} ${role.gain}` : role.why}
                 <br />
                 <small className="aux-current">
-                  {role.auto
-                    ? 'Auto — uses your main model'
-                    : `${role.provider} · ${role.model}${
-                        role.effort ? ` · ${role.effort} effort` : ''
-                      }`}
+                  {role.auto ? (
+                    'Auto — uses your main model'
+                  ) : (
+                    <><TechnicalText>{role.provider}</TechnicalText> · <TechnicalText>{role.model}</TechnicalText>{role.effort ? <> · {role.effort} effort</> : null}</>
+                  )}
                 </small>
               </>
             )

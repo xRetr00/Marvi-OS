@@ -30,6 +30,7 @@ import {
 import React, { useEffect, useMemo, useState } from 'react'
 
 import type { AuditEvent, FileCheckpoint } from '../../../shared/runtime'
+import { TechnicalText } from './ui/technical-text'
 
 type Outcome = 'ok' | 'failed' | 'refused' | 'other'
 
@@ -343,9 +344,9 @@ function FileChanges(): React.JSX.Element | null {
           <li key={row.id}>
             <span className="act-files-when">{row.at.slice(11, 16)}</span>
             <span className="act-files-what">{row.action}</span>
-            <span className="act-files-path" title={row.path}>
+            <TechnicalText className="act-files-path" title={row.path}>
               {row.path}
-            </span>
+            </TechnicalText>
             <button
               className="act-files-restore"
               disabled={busy === row.id}

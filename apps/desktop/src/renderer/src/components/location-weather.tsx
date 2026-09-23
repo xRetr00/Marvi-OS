@@ -443,7 +443,7 @@ export function LocationWeather(): React.JSX.Element {
           <span>
             <Tr text={'OUTSIDE'} />
           </span>
-          <span>{weather?.status === 'stale' ? 'CACHED · OUT OF DATE' : 'WEATHER'}</span>
+          <span>{t(weather?.status === 'stale' ? 'CACHED · OUT OF DATE' : 'WEATHER')}</span>
         </header>
         {data ? (
           <>
@@ -451,7 +451,7 @@ export function LocationWeather(): React.JSX.Element {
               <WeatherIcon code={data.current.weather_code} day={Boolean(data.current.is_day)} />
               <div>
                 <strong>
-                  {Math.round(data.current.temperature_2m)}
+                  {formatNumber(Math.round(data.current.temperature_2m))}
                   <small>
                     <Tr text={'°C'} />
                   </small>
@@ -462,17 +462,17 @@ export function LocationWeather(): React.JSX.Element {
                 <span>{place?.label}</span>
                 <span>
                   <Tr text={'Feels like'} after />
-                  {Math.round(data.current.apparent_temperature)}°
+                  {formatNumber(Math.round(data.current.apparent_temperature))}°
                 </span>
               </div>
             </div>
             <div className="weather-details">
               <span>
-                <Wind /> {data.current.wind_speed_10m} <Tr text={'km/h'} before after />
+                <Wind /> {formatNumber(data.current.wind_speed_10m)} <Tr text={'km/h'} before after />
               </span>
               <span>
                 <Tr text={'Humidity'} after />
-                {data.current.relative_humidity_2m}%
+                {formatNumber(data.current.relative_humidity_2m)}%
               </span>
             </div>
             <div className="weather-days">
@@ -480,7 +480,7 @@ export function LocationWeather(): React.JSX.Element {
                 <div key={day}>
                   <span>
                     {i === 0
-                      ? 'Today'
+                      ? t('Today')
                       : formatDate(new Date(`${day}T12:00:00`), {
                           weekday: 'short'
                         })}
@@ -489,17 +489,17 @@ export function LocationWeather(): React.JSX.Element {
                   <span>
                     {data.daily.temperature_2m_max[i] == null
                       ? '—'
-                      : Math.round(data.daily.temperature_2m_max[i])}
+                      : formatNumber(Math.round(data.daily.temperature_2m_max[i]))}
                     °{' '}
                     <small>
                       {data.daily.temperature_2m_min[i] == null
                         ? '—'
-                        : Math.round(data.daily.temperature_2m_min[i])}
+                        : formatNumber(Math.round(data.daily.temperature_2m_min[i]))}
                       °
                     </small>
                   </span>
                   <small>
-                    {data.daily.precipitation_probability_max[i] ?? '—'}
+                    {data.daily.precipitation_probability_max[i] == null ? '—' : formatNumber(data.daily.precipitation_probability_max[i])}
                     <Tr text={'% rain'} />
                   </small>
                 </div>
@@ -525,14 +525,14 @@ export function LocationWeather(): React.JSX.Element {
           <div className="weather-empty">
             <Cloud />
             <h3>
-              {location?.status === 'ready'
+              {t(location?.status === 'ready'
                 ? 'Weather unavailable'
-                : 'A little context for your day'}
+                : 'A little context for your day')}
             </h3>
             <p>
-              {location?.status === 'ready'
+              {t(location?.status === 'ready'
                 ? 'The weather service is not answering. Try refreshing shortly.'
-                : 'Choose your location to see the weather, forecast and daylight hours here.'}
+                : 'Choose your location to see the weather, forecast and daylight hours here.')}
             </p>
             <button
               type="button"
@@ -541,7 +541,7 @@ export function LocationWeather(): React.JSX.Element {
               }
               disabled={busy}
             >
-              {location?.status === 'ready' ? 'Refresh weather' : 'Set location'}
+              {t(location?.status === 'ready' ? 'Refresh weather' : 'Set location')}
             </button>
           </div>
         )}
@@ -561,7 +561,7 @@ export function LocationWeather(): React.JSX.Element {
             <i
               className={location?.status === 'ready' ? 'location-dot' : 'location-dot is-muted'}
             />
-            {stateLabel}
+            {t(stateLabel)}
             <ChevronDown />
           </span>
         </button>
@@ -578,23 +578,23 @@ export function LocationWeather(): React.JSX.Element {
         ) : (
           <button type="button" className="map-empty" onClick={() => setExpanded(true)}>
             <Navigation />
-            <span>{busy ? 'Finding your location…' : 'Make this your corner of the world'}</span>
+            <span>{t(busy ? 'Finding your location…' : 'Make this your corner of the world')}</span>
             <small>
               <Tr text={'Use Windows location or pin a place'} />
             </small>
           </button>
         )}
         <div className="map-caption">
-          <strong>{place?.label ?? 'No location selected'}</strong>
+          <strong>{place?.label ?? t('No location selected')}</strong>
           <span>
             {place
               ? `${Math.abs(place.latitude).toFixed(4)}° ${place.latitude >= 0 ? 'N' : 'S'} · ${Math.abs(place.longitude).toFixed(4)}° ${place.longitude >= 0 ? 'E' : 'W'}`
-              : 'You control location access'}
+              : t('You control location access')}
           </span>
           {place?.pinned && <small>{place.source}</small>}
           {place?.accuracy_m != null && (
             <small>
-              {place.coarse ? 'Approximate · your internet provider' : place.source} · ±
+              {place.coarse ? t('Approximate · your internet provider') : place.source} · ±
               {formatNumber(Math.round(place.accuracy_m))} <Tr text={'m ·'} before />{' '}
               {place.timestamp
                 ? formatDate(place.timestamp * 1000, {

@@ -309,12 +309,16 @@ nav {
   background: rgb(255 255 255 / 2.5%);
 }
 .nav-item.active {
-  border-left-color: var(--ui-accent);
+  border-inline-start-color: var(--ui-accent);
   color: var(--ui-text-emphasis);
   background: linear-gradient(90deg, var(--ui-accent-soft), transparent);
 }
 .nav-item.active span {
   color: var(--ui-accent);
+}
+
+html[dir='rtl'] .nav-item.active {
+  background: linear-gradient(270deg, var(--ui-accent-soft), transparent);
 }
 
 .sidebar-foot {
@@ -2321,7 +2325,7 @@ small,
 }
 
 .settings-link.active {
-  border-left-color: var(--ui-accent);
+  border-inline-start-color: var(--ui-accent);
   color: var(--ui-text-emphasis);
   background: rgb(255 255 255 / 4%);
 }
@@ -3592,7 +3596,7 @@ body {
 /* Sidebar: icon-led, spacious enough to scan, with secondary codes kept as
  * quiet orientation aids instead of acting as the icon themselves. */
 .sidebar {
-  border-right-color: var(--ui-stroke-primary);
+  border-inline-end-color: var(--ui-stroke-primary);
   background:
     linear-gradient(135deg, rgb(255 255 255 / 1.5%) 0 1px, transparent 1px 18px),
     color-mix(in srgb, var(--ui-bg) 98%, transparent);
@@ -4729,7 +4733,7 @@ body {
 
 .titlebar-control.settings {
   margin-inline-end: 5px;
-  border-right-color: var(--ui-stroke-tertiary);
+  border-inline-end-color: var(--ui-stroke-tertiary);
 }
 
 .titlebar-control.close:hover,
@@ -6495,13 +6499,13 @@ body {
 
 .voice-line.is-marvi {
   color: var(--ui-text-emphasis);
-  border-left-color: var(--ui-accent);
+  border-inline-start-color: var(--ui-accent);
 }
 
 /* Still being revised: the recogniser may yet change its mind, and a line that
  * looks settled while it is not is the one thing subtitles must not do. */
 .voice-line.is-live {
-  border-left-color: var(--ui-accent);
+  border-inline-start-color: var(--ui-accent);
 }
 
 /* The words, which is everything after the speaker label. Given its own box so
@@ -8871,7 +8875,7 @@ body {
 /* Main navigation follows the same compact rail rhythm as the rest of the
  * desktop shell. */
 .sidebar {
-  border-right-color: var(--ui-stroke-primary);
+  border-inline-end-color: var(--ui-stroke-primary);
   background: color-mix(in srgb, var(--ui-bg-raised) 88%, var(--ui-bg));
 }
 
@@ -11800,15 +11804,15 @@ html[data-appearance='claude-code-dark'] .control-row {
 }
 
 .act-run.is-failed {
-  border-left-color: var(--ui-danger);
+  border-inline-start-color: var(--ui-danger);
 }
 
 .act-run.is-refused {
-  border-left-color: #c79b58;
+  border-inline-start-color: #c79b58;
 }
 
 .act-run.is-ok {
-  border-left-color: color-mix(in srgb, var(--ui-accent) 55%, transparent);
+  border-inline-start-color: color-mix(in srgb, var(--ui-accent) 55%, transparent);
 }
 
 .act-run-head {
@@ -12252,12 +12256,12 @@ html[data-appearance='claude-code-dark'] .control-row {
 }
 
 .sched-card.is-paused {
-  border-left-color: var(--ui-border-subtle);
+  border-inline-start-color: var(--ui-border-subtle);
   opacity: 0.72;
 }
 
 .sched-card.is-failed {
-  border-left-color: var(--ui-danger);
+  border-inline-start-color: var(--ui-danger);
 }
 
 .sched-card header {
@@ -13898,19 +13902,19 @@ html[data-appearance='claude-code-dark'] .control-row {
 }
 
 .res-now.is-call {
-  border-left-color: var(--res-call);
+  border-inline-start-color: var(--res-call);
 }
 .res-now.is-talking {
-  border-left-color: var(--res-talking);
+  border-inline-start-color: var(--res-talking);
 }
 .res-now.is-warming {
-  border-left-color: var(--res-warming);
+  border-inline-start-color: var(--res-warming);
 }
 .res-now.is-game {
-  border-left-color: var(--res-game);
+  border-inline-start-color: var(--res-game);
 }
 .res-now.is-closing {
-  border-left-color: var(--res-closing);
+  border-inline-start-color: var(--res-closing);
 }
 
 .res-doing {

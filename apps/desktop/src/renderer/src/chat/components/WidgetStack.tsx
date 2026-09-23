@@ -1,6 +1,7 @@
 import { Tr } from '../../store/locale'
 import type { ChatPart, ChatWidgetPart } from '../../../../shared/runtime'
 import { CommerceTravelCard } from './CommerceTravelCards'
+import { TechnicalText } from '../../components/ui/technical-text'
 
 type Item = Record<string, string>
 
@@ -84,7 +85,7 @@ function Sources({ rows }: { rows: Item[]; title: string }): React.JSX.Element {
             <span className="chat-source-index">{index + 1}</span>
             <span className="chat-source-copy">
               <strong>{row.title || host(row.url)}</strong>
-              <small>{host(row.url)}</small>
+              <small><TechnicalText>{host(row.url)}</TechnicalText></small>
             </span>
             <span className="chat-source-open" aria-hidden="true">
               ↗

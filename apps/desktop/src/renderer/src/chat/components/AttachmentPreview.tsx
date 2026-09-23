@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 
 import type { ChatAttachment } from '../../../../shared/runtime'
 import { AbstractIcon } from '../../components/abstract-icon'
+import { TechnicalText } from '../../components/ui/technical-text'
 import { formatBytes } from '../attachment-format'
 
 /** Only the fields this actually reads.
@@ -56,7 +57,7 @@ export function AttachmentPreview({
             {source ? <img alt={attachment.name} src={source} /> : <span aria-hidden="true" />}
           </button>
           <figcaption>
-            <span>{attachment.name}</span>
+            <TechnicalText>{attachment.name}</TechnicalText>
             <small>{formatBytes(attachment.size)}</small>
           </figcaption>
         </figure>
@@ -76,7 +77,7 @@ export function AttachmentPreview({
               <AbstractIcon name="close" size={16} />
             </button>
             <img alt={attachment.name} onClick={(event) => event.stopPropagation()} src={source} />
-            <span>{attachment.name}</span>
+            <TechnicalText>{attachment.name}</TechnicalText>
           </div>
         ) : null}
       </>
@@ -86,7 +87,7 @@ export function AttachmentPreview({
   return (
     <span className="chat-document-attachment">
       <AbstractIcon name="paperclip" size={12} />
-      {attachment.name}
+      <TechnicalText>{attachment.name}</TechnicalText>
       <small>{formatBytes(attachment.size)}</small>
     </span>
   )

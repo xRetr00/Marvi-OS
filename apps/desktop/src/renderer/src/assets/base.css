@@ -75,7 +75,7 @@
   text-rendering: geometricPrecision;
 }
 
-html[lang='ar'] .chat-sessions {
+html[dir='rtl'] .chat-sessions {
   animation-name: chat-drawer-in-rtl;
 }
 
@@ -92,9 +92,14 @@ html[lang='ar'] .chat-sessions {
 
 html[lang='ar'] pre,
 html[lang='ar'] code,
+html[lang='ar'] bdi[dir='ltr'],
 html[lang='ar'] .nav-code,
 html[lang='ar'] input[type='url'] {
   direction: ltr;
+  unicode-bidi: isolate;
+}
+
+html[lang='ar'] a[href] {
   unicode-bidi: isolate;
 }
 
@@ -102,6 +107,28 @@ html[lang='ar'] input,
 html[lang='ar'] textarea,
 html[lang='ar'] .chat-message-content {
   unicode-bidi: plaintext;
+}
+
+/* An LTR shell keeps navigation and controls in their familiar positions,
+ * while Arabic prose still establishes its own RTL paragraph direction. */
+html[lang='ar'][dir='ltr'] :where(
+  p,
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  dd,
+  dt,
+  .control-row-copy,
+  .chat-message-content,
+  .island-copy,
+  .confirmation-copy
+) {
+  direction: rtl;
+  unicode-bidi: plaintext;
+  text-align: start;
 }
 
 html[data-font='anthropic-sans'] {

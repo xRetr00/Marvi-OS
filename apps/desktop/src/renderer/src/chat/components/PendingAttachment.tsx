@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 
 import type { ChatAttachment } from '../../../../shared/runtime'
 import { AbstractIcon } from '../../components/abstract-icon'
+import { TechnicalText } from '../../components/ui/technical-text'
 import { formatBytes } from '../attachment-format'
 
 export function PendingAttachment({
@@ -34,7 +35,7 @@ export function PendingAttachment({
         )}
       </span>
       <span className="chat-attachment-copy">
-        <strong>{attachment.name}</strong>
+        <strong><TechnicalText>{attachment.name}</TechnicalText></strong>
         <small>
           {attachment.kind === 'image' ? 'IMAGE' : fileExtension(attachment.name)} ·{' '}
           {formatBytes(attachment.size)}

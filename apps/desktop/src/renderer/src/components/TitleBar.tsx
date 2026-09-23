@@ -65,9 +65,9 @@ export function TitleBar({
     <header className="titlebar" data-shell-context="titlebar">
       <div className="titlebar-brand">
         {onToggleSidebar ? (
-          <UiTooltip label={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'} side="bottom">
+          <UiTooltip label={t(sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar')} side="bottom">
             <button
-              aria-label={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
+              aria-label={t(sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar')}
               aria-pressed={!sidebarCollapsed}
               className="titlebar-control titlebar-sidebar-toggle no-drag"
               onClick={() => {
@@ -85,7 +85,7 @@ export function TitleBar({
           </UiTooltip>
         ) : null}
         <LocationClock />
-        <span className="titlebar-page">{page.toUpperCase()}</span>
+        <span className="titlebar-page">{t(page).toUpperCase()}</span>
       </div>
       <div className="titlebar-spacer" />
       <div className="titlebar-controls no-drag">
@@ -93,9 +93,9 @@ export function TitleBar({
             button on the Graph page opens a pane next to a graph, which is
             not the thing anybody meant. */}
         {onToggleBrowser ? (
-          <UiTooltip label={browserOpen ? 'Close the browser' : 'Open the browser'} side="bottom">
+          <UiTooltip label={t(browserOpen ? 'Close the browser' : 'Open the browser')} side="bottom">
             <button
-              aria-label={browserOpen ? 'Close the browser' : 'Open the browser'}
+              aria-label={t(browserOpen ? 'Close the browser' : 'Open the browser')}
               aria-pressed={browserOpen}
               className={`titlebar-control browser${browserOpen ? ' is-on' : ''}`}
               onClick={() => {
@@ -122,9 +122,9 @@ export function TitleBar({
             <Keyboard aria-hidden="true" />
           </button>
         </UiTooltip>
-        <UiTooltip label={hapticsMuted ? 'Unmute haptics' : 'Mute haptics'} side="bottom">
+        <UiTooltip label={t(hapticsMuted ? 'Unmute haptics' : 'Mute haptics')} side="bottom">
           <button
-            aria-label={hapticsMuted ? 'Unmute haptics' : 'Mute haptics'}
+            aria-label={t(hapticsMuted ? 'Unmute haptics' : 'Mute haptics')}
             aria-pressed={hapticsMuted}
             className="titlebar-control haptics"
             onClick={onToggleHaptics}

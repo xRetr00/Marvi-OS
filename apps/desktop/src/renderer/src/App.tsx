@@ -105,6 +105,7 @@ import { AboutUpdates, VersionPopover } from './components/update-controls'
 import { AgentsStatusItem } from './components/agents/agents'
 import { startUpdatePolling } from './store/update-state'
 import { TooltipProvider, UiTooltip } from './components/ui/tooltip'
+import { TechnicalText } from './components/ui/technical-text'
 import {
   ControlButton,
   ControlEmpty,
@@ -137,7 +138,7 @@ import {
 } from './components/capabilities/capability-library'
 import { ContextStatus } from './chat/components/ContextStatus'
 import { $chatContextStatus } from './store/chat-context'
-import { $interfaceLocale, formatDate, interpolate, setInterfaceLocale, t } from './store/locale'
+import { $interfaceDirection, $interfaceLocale, formatDate, interpolate, setInterfaceDirection, setInterfaceLocale, t } from './store/locale'
 import { gatewayCopy } from './store/gateway-copy'
 import { $recognisers, chooseRecogniser, refreshRecognisers } from './store/recognisers'
 
@@ -376,6 +377,7 @@ interface BuildInfo {
 
 function MainSurface(): React.JSX.Element {
   const interfaceLocale = useStore($interfaceLocale)
+  const interfaceDirection = useStore($interfaceDirection)
   const voice = useStore($voiceState)
   const runtime = useStore($runtimeState)
   // For the header's status, which is the same session state the field shows.
@@ -3529,7 +3531,7 @@ function ServiceHealth({ compact = false }: { compact?: boolean }): React.JSX.El
   if (services.length === 0) {
     return (
       <span className="construction">
-        {compact ? 'NO SUPERVISED SERVICES' : 'SERVICES ARE MANAGED OUTSIDE MARVI'}
+        {t(compact ? 'NO SUPERVISED SERVICES' : 'SERVICES ARE MANAGED OUTSIDE MARVI')}
       </span>
     )
   }
@@ -4575,7 +4577,7 @@ function PluginsPanel(): React.JSX.Element {
               <small className="plugin-repo">
                 {plugin.repo}
                 {plugin.ref ? ` (${plugin.ref})` : ' (default branch)'}
-                {plugin.commit ? ` @${plugin.commit}` : ''}
+                {plugin.commit ? <> @<TechnicalText>{plugin.commit}</TechnicalText></> : ''}
               </small>
               {plugin.installed && (!plugin.supported || !plugin.running) ? (
                 <small className="provider-cooldown">{plugin.detail}</small>
@@ -4590,7 +4592,7 @@ function PluginsPanel(): React.JSX.Element {
               {confirming === plugin.name ? (
                 <div className="chat-confirm">
                   <p>
-                    <bdi>{plugin.title}</bdi>{' '}
+                    <bdi dir="auto">{plugin.title}</bdi>{' '}
                     <Tr text="runs its own code inside Marvi and installs its dependencies into Marvi's environment. Only install plugins you trust." />
                   </p>
                   <div className="provider-actions">
@@ -5202,7 +5204,7 @@ function SkillsPanel(): React.JSX.Element {
                     </header>
                     <p>{skill.description}</p>
                     <div className="capability-card-meta">
-                      <span>{skill.path}</span>
+                      <TechnicalText className="skill-path" title={skill.path}>{skill.path}</TechnicalText>
                       <span>{skill.source}</span>
                     </div>
                     <footer className="capability-card-actions">
@@ -6118,6 +6120,26 @@ function WorkspacePanel(): React.JSX.Element {
           }
           title={policy?.root || 'No workspace chosen'}
         />
+        <ControlRow
+          title={t('Interface direction', interfaceLocale)}
+          description={t(
+            'Follow language mirrors Arabic. Choose LTR to keep the application shell left to right while Arabic text remains right to left.',
+            interfaceLocale
+          )}
+          action={
+            <Picker
+              options={[
+                { value: 'follow', label: t('Follow language', interfaceLocale) },
+                { value: 'rtl', label: t('Right to left', interfaceLocale) },
+                { value: 'ltr', label: t('Left to right', interfaceLocale) }
+              ]}
+              value={interfaceDirection}
+              onChange={(next) =>
+                setInterfaceDirection(next === 'rtl' || next === 'ltr' ? next : 'follow')
+              }
+            />
+          }
+        />
       </ControlSection>
 
       <ControlSection
@@ -6915,11 +6937,11 @@ function PreferencesPanel({
 
       <ControlSection icon={Gauge} title={t('Device status')}>
         <ControlRow
-          action={<ControlPill>{DEVICE_COPY[deviceState(runtime, 'microphone')]}</ControlPill>}
+          action={<ControlPill>{t(DEVICE_COPY[deviceState(runtime, 'microphone')])}</ControlPill>}
           title={t('Microphone')}
         />
         <ControlRow
-          action={<ControlPill>{DEVICE_COPY[deviceState(runtime, 'camera')]}</ControlPill>}
+          action={<ControlPill>{t(DEVICE_COPY[deviceState(runtime, 'camera')])}</ControlPill>}
           title={t('Camera')}
         />
         <ControlRow

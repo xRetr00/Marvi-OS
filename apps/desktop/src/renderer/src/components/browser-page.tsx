@@ -423,7 +423,7 @@ export function BrowserPage({ onClose }: { onClose?: () => void } = {}): React.J
             aria-label={t('Website')}
             onChange={(event) => setUrl(event.target.value)}
             placeholder={t('Type a URL')}
-            type="text"
+            type="url"
             value={url}
           />
           <button disabled={busy || !status}>

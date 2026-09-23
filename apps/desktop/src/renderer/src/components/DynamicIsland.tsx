@@ -71,8 +71,8 @@ export function DynamicIsland({
       >
         <div className="confirmation-copy">
           <small>{t('CONFIRM', locale)}</small>
-          <strong dir="auto">{state.confirmation.action}</strong>
-          <span dir="auto">{state.confirmation.detail}</span>
+          <strong dir="auto">{t(state.confirmation.action, locale)}</strong>
+          <span dir="auto">{t(state.confirmation.detail, locale)}</span>
         </div>
         <div className="confirmation-actions">
           <button
@@ -98,10 +98,10 @@ export function DynamicIsland({
   const reactive = state.phase === 'listening' || state.phase === 'speaking'
   const announcement = state.phase === 'announcing' ? state.announcement : null
   const label = announcement
-    ? `${announcementSourceLabel(announcement.source)} · ${t('NOW', locale)}`
+    ? `${t(announcementSourceLabel(announcement.source), locale)} · ${t('NOW', locale)}`
     : t(ISLAND_PHASE_LABEL[state.phase], locale)
-  const caption = announcement?.text ?? state.caption
-  const detail = announcement ? null : state.detail
+  const caption = announcement?.text ?? t(state.caption, locale)
+  const detail = announcement ? null : state.detail ? t(state.detail, locale) : null
 
   return (
     <div
@@ -130,7 +130,7 @@ export function DynamicIsland({
       ) : (
         <small className="island-compact-label" aria-hidden="true">
           {announcement
-            ? announcementSourceLabel(announcement.source)
+            ? t(announcementSourceLabel(announcement.source), locale)
             : t(ISLAND_PHASE_LABEL[state.phase], locale)}
         </small>
       )}

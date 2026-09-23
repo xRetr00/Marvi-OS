@@ -1,6 +1,7 @@
 import { Tr } from '../../store/locale'
 import type { ChatContext } from '../../../../shared/runtime'
 import { compactTokens, contextPercent, contextSegments } from '../context-breakdown'
+import { TechnicalText } from '../../components/ui/technical-text'
 
 export function ContextRing({ context }: { context?: ChatContext | null }): React.JSX.Element {
   const percent = contextPercent(context)
@@ -103,7 +104,7 @@ export function ContextBreakdown({
             <Tr text={'ROUTE'} />
           </dt>
           <dd title={route || context?.model || 'Default'}>
-            {route || context?.model || 'Default'}
+            <TechnicalText>{route || context?.model || 'Default'}</TechnicalText>
           </dd>
         </div>
       </dl>

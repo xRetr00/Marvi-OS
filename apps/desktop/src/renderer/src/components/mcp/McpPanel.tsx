@@ -11,6 +11,7 @@ import {
   mergeRegistryServers
 } from '../capabilities/capability-library'
 import type { McpInstalledServer, McpRegistryServer } from '../../../../shared/runtime'
+import { TechnicalText } from '../ui/technical-text'
 
 type McpStoreTab = 'installed' | 'registry'
 
@@ -258,7 +259,7 @@ export function McpPanel(): React.JSX.Element {
                         </span>
                         <div>
                           <strong>{row.name}</strong>
-                          <span>{row.id}</span>
+                          <TechnicalText>{row.id}</TechnicalText>
                         </div>
                         <ControlPill tone={row.status === 'connected' ? 'ready' : 'danger'}>
                           {row.status}
