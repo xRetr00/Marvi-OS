@@ -1088,5 +1088,10 @@
   "Send email reply": "إرسال رد البريد الإلكتروني",
   "To Alex · Re: Project update": "إلى Alex · ردًا على: تحديث المشروع",
   "Confirm action": "تأكيد الإجراء",
-  "Send the drafted reply?": "هل تريد إرسال الرد المُعد؟"
+  "Send the drafted reply?": "هل تريد إرسال الرد المُعد؟",
+  "Interface direction": "اتجاه الواجهة",
+  "Follow language mirrors Arabic. Choose LTR to keep the application shell left to right while Arabic text remains right to left.": "اتباع اللغة يعكس الواجهة مع العربية. اختر من اليسار إلى اليمين لإبقاء هيكل التطبيق بهذا الاتجاه مع بقاء النص العربي من اليمين إلى اليسار.",
+  "Follow language": "اتباع اللغة",
+  "Right to left": "من اليمين إلى اليسار",
+  "Left to right": "من اليسار إلى اليمين"
 }

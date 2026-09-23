@@ -377,7 +377,6 @@ interface BuildInfo {
 
 function MainSurface(): React.JSX.Element {
   const interfaceLocale = useStore($interfaceLocale)
-  const interfaceDirection = useStore($interfaceDirection)
   const voice = useStore($voiceState)
   const runtime = useStore($runtimeState)
   // For the header's status, which is the same session state the field shows.
@@ -6120,26 +6119,6 @@ function WorkspacePanel(): React.JSX.Element {
           }
           title={policy?.root || 'No workspace chosen'}
         />
-        <ControlRow
-          title={t('Interface direction', interfaceLocale)}
-          description={t(
-            'Follow language mirrors Arabic. Choose LTR to keep the application shell left to right while Arabic text remains right to left.',
-            interfaceLocale
-          )}
-          action={
-            <Picker
-              options={[
-                { value: 'follow', label: t('Follow language', interfaceLocale) },
-                { value: 'rtl', label: t('Right to left', interfaceLocale) },
-                { value: 'ltr', label: t('Left to right', interfaceLocale) }
-              ]}
-              value={interfaceDirection}
-              onChange={(next) =>
-                setInterfaceDirection(next === 'rtl' || next === 'ltr' ? next : 'follow')
-              }
-            />
-          }
-        />
       </ControlSection>
 
       <ControlSection
@@ -6824,6 +6803,7 @@ function PreferencesPanel({
   onHotkeys: () => void
 }): React.JSX.Element {
   const interfaceLocale = useStore($interfaceLocale)
+  const interfaceDirection = useStore($interfaceDirection)
   const setYolo = (enabled: boolean): void => {
     void window.marvi?.setYolo(enabled).then(applyRuntimeState)
   }
@@ -6856,6 +6836,26 @@ function PreferencesPanel({
               ]}
               value={interfaceLocale}
               onChange={(next) => setInterfaceLocale(next === 'ar' ? 'ar' : 'en')}
+            />
+          }
+        />
+        <ControlRow
+          title={t('Interface direction', interfaceLocale)}
+          description={t(
+            'Follow language mirrors Arabic. Choose LTR to keep the application shell left to right while Arabic text remains right to left.',
+            interfaceLocale
+          )}
+          action={
+            <Picker
+              options={[
+                { value: 'follow', label: t('Follow language', interfaceLocale) },
+                { value: 'rtl', label: t('Right to left', interfaceLocale) },
+                { value: 'ltr', label: t('Left to right', interfaceLocale) }
+              ]}
+              value={interfaceDirection}
+              onChange={(next) =>
+                setInterfaceDirection(next === 'rtl' || next === 'ltr' ? next : 'follow')
+              }
             />
           }
         />
