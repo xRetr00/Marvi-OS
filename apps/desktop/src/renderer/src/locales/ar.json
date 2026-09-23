@@ -1093,5 +1093,10 @@
   "Follow language mirrors Arabic. Choose LTR to keep the application shell left to right while Arabic text remains right to left.": "اتباع اللغة يعكس الواجهة مع العربية. اختر من اليسار إلى اليمين لإبقاء هيكل التطبيق بهذا الاتجاه مع بقاء النص العربي من اليمين إلى اليسار.",
   "Follow language": "اتباع اللغة",
   "Right to left": "من اليمين إلى اليسار",
-  "Left to right": "من اليسار إلى اليمين"
+  "Left to right": "من اليسار إلى اليمين",
+  "Voice unavailable": "الصوت غير متاح",
+  "Voice not working in low-resource mode": "الصوت لا يعمل في وضع الموارد المنخفضة",
+  "Turn off low-resource mode to restore LiveKit, speech and microphone controls.": "أوقف وضع الموارد المنخفضة لاستعادة LiveKit والكلام وعناصر تحكم الميكروفون.",
+  "Voice does not work in this mode. Voice controls stay disabled until low-resource mode is turned off.": "لا يعمل الصوت في هذا الوضع. تظل عناصر التحكم الصوتية معطلة حتى إيقاف وضع الموارد المنخفضة.",
+  "Marvi gets out of the way of whatever else is using this machine. She stops LiveKit, the voice worker, wake listening, dictation, and speech models so voice holds no GPU and the smallest practical CPU and memory footprint.": "تفسح Marvi موارد الجهاز للمهام الأخرى. توقف LiveKit وعامل الصوت والاستماع لكلمة التنبيه والإملاء ونماذج الكلام، فلا يستخدم الصوت معالج الرسومات ويستهلك أقل قدر عملي من المعالج والذاكرة."
 }

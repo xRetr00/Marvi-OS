@@ -18,7 +18,9 @@ describe('wake host lifecycle', () => {
   })
 
   it('gates crash recovery on the user setting and a stale heartbeat', () => {
-    expect(main).toContain('!wakeAutoRestartEnabled() || wakeListenerFresh()')
+    expect(main).toContain('lowResourceMode')
+    expect(main).toContain('!wakeAutoRestartEnabled()')
+    expect(main).toContain('wakeListenerFresh()')
     expect(main).toContain('MARVI_WAKE_AUTO_RESTART=')
     expect(main).toContain('now - heartbeat <= WAKE_STALE_MS')
   })

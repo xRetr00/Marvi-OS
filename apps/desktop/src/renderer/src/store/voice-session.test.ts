@@ -3,7 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const connect = vi.hoisted(() => vi.fn())
 
 vi.mock('../lib/livekit-room', () => ({ connectVoiceRoom: connect, expectDisconnect: vi.fn() }))
-vi.mock('./voice-state', () => ({ cycleVoicePhase: vi.fn() }))
+vi.mock('./voice-state', () => ({
+  $runtimeState: { get: () => ({ resources: { low_resource: false } }) },
+  cycleVoicePhase: vi.fn()
+}))
 
 /** Just enough Room to be started, stopped, and to hang up on its own. */
 function fakeRoom(): {
