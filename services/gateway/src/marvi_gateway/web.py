@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import contextlib
 import ipaddress
+import json
 import os
 import socket
 from html.parser import HTMLParser
@@ -28,6 +29,9 @@ MAX_FETCH_BYTES = 2_000_000
 DEFAULT_RESULTS = 5
 
 BRAVE_ENDPOINT = "https://api.search.brave.com/res/v1/web/search"
+JINA_READER_ENDPOINT = "https://r.jina.ai/"
+WEB_FETCHER_SETTING = "MARVI_WEB_FETCHER"
+WEB_FETCHERS = ("builtin", "trafilatura", "jina")
 
 
 class WebUnavailableError(Exception):
@@ -135,6 +139,12 @@ def configured_provider() -> str | None:
     return None
 
 
+def configured_fetcher() -> str:
+    """Return the user-selected page reader, with a safe compatibility default."""
+    selected = os.environ.get(WEB_FETCHER_SETTING, "builtin").strip().lower()
+    return selected if selected in WEB_FETCHERS else "builtin"
+
+
 class WebTools:
     def __init__(self, client: httpx.Client | None = None, provider: str | None = None) -> None:
         self._client = client
@@ -142,6 +152,9 @@ class WebTools:
 
     def provider(self) -> str | None:
         return self._provider or configured_provider()
+
+    def fetcher(self) -> str:
+        return configured_fetcher()
 
     def _http(self) -> httpx.Client:
         return self._client or httpx.Client(
@@ -234,24 +247,90 @@ class WebTools:
         listen to. The full text still comes back, so a caller that wants it
         has it and nothing is hidden behind the summary.
         """
-        page = self.fetch(url)
-        title, text = html_to_text(page["body"])
+        selected = self.fetcher()
+        if selected == "trafilatura":
+            page = self._extract_trafilatura(url)
+        elif selected == "jina":
+            page = self._extract_jina(url)
+        else:
+            page = self.fetch(url)
+            title, text = html_to_text(page["body"])
+            page = {**page, "title": title, "text": text, "fetcher": "builtin"}
         answer = ""
         if question.strip():
             from . import distil
             from .providers import ProviderClient
 
-            answer = distil.extract_answer(ProviderClient(), text, question)
+            answer = distil.extract_answer(ProviderClient(), page["text"], question)
         found = {
+            "url": page["url"],
+            "status": page["status"],
+            "title": page["title"],
+            "text": page["text"],
+            "truncated": page["truncated"],
+            "fetcher": page["fetcher"],
+        }
+        if answer:
+            found["answer"] = answer
+        return found
+
+    def _extract_trafilatura(self, url: str) -> dict[str, Any]:
+        """Fetch with Marvi's bounded HTTP client and extract locally."""
+        page = self.fetch(url)
+        try:
+            import trafilatura
+        except ImportError as exc:
+            raise WebUnavailableError(
+                "Trafilatura is selected but not installed. Install the Gateway dependencies "
+                "or choose Built-in reader in Preferences."
+            ) from exc
+        try:
+            raw = trafilatura.extract(
+                page["body"], url=page["url"], output_format="json", with_metadata=True
+            )
+            metadata = json.loads(raw) if raw else {}
+            text = str(metadata.get("text") or "")
+            title = str(metadata.get("title") or "")
+        except Exception as exc:
+            raise WebUnavailableError(f"Trafilatura could not extract {url}: {exc}") from exc
+        return {
             "url": page["url"],
             "status": page["status"],
             "title": title,
             "text": text,
             "truncated": page["truncated"],
+            "fetcher": "trafilatura",
         }
-        if answer:
-            found["answer"] = answer
-        return found
+
+    def _extract_jina(self, url: str) -> dict[str, Any]:
+        """Read a public URL through the hosted Jina Reader service."""
+        assert_public_http_url(url)
+        client = self._http()
+        try:
+            # Jina's documented reader URL is /{target-url}; preserve the
+            # target's query and fragment rather than treating it as params.
+            endpoint = f"{JINA_READER_ENDPOINT}{url}"
+            headers = {"accept": "text/markdown"}
+            if key := os.environ.get("JINA_API_KEY", "").strip():
+                headers["authorization"] = f"Bearer {key}"
+            response = client.get(endpoint, headers=headers)
+            response.raise_for_status()
+            body = response.content[:MAX_FETCH_BYTES].decode(response.encoding or "utf-8", "replace")
+            title = next(
+                (line.lstrip("# ").strip() for line in body.splitlines() if line.startswith("# ")), ""
+            )
+            return {
+                "url": url,
+                "status": response.status_code,
+                "title": title,
+                "text": body,
+                "truncated": len(response.content) > MAX_FETCH_BYTES,
+                "fetcher": "jina",
+            }
+        except httpx.HTTPError as exc:
+            raise WebUnavailableError(f"Jina Reader could not fetch {url}: {exc}") from exc
+        finally:
+            self._close(client)
 
 
 def register_web_tools(registry, web: WebTools) -> None:

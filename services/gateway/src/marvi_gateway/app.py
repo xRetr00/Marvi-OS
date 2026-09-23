@@ -129,7 +129,7 @@ from .telegram import (
     register_telegram_tools,
 )
 from .tools import InvalidArgumentsError, ToolRegistry, ToolSpec, UnknownToolError
-from .web import WebTools, register_web_tools
+from .web import WEB_FETCHER_SETTING, WEB_FETCHERS, WebTools, register_web_tools
 from .workspace import Workspace, register_workspace_tools
 
 # Long enough for a loopback connect, short enough that a page listing a dozen
@@ -5603,6 +5603,12 @@ def create_app(
 
     @app.put("/providers/settings", response_model=ProviderPage)
     async def set_provider_settings(update: ProviderSettingsUpdate) -> ProviderPage:
+        selected_fetcher = update.values.get(WEB_FETCHER_SETTING)
+        if selected_fetcher is not None and selected_fetcher not in WEB_FETCHERS:
+            raise HTTPException(
+                status_code=422,
+                detail=f"{WEB_FETCHER_SETTING} must be one of: {', '.join(WEB_FETCHERS)}",
+            )
         provider_config.update(update.values)
         # A key typed in a moment ago must not appear in the next log line.
         redactor().refresh()

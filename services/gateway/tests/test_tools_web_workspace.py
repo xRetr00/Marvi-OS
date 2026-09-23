@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import sys
+import types
 
 import httpx
 import pytest
@@ -71,6 +72,58 @@ def test_script_and_style_are_stripped_from_page_text() -> None:
 
 def test_malformed_markup_does_not_raise() -> None:
     assert html_to_text("<p>unclosed <b>bold") == ("", "unclosed\nbold")
+
+
+def test_fetcher_selection_defaults_to_builtin_and_rejects_unknown(monkeypatch) -> None:
+    monkeypatch.delenv("MARVI_WEB_FETCHER", raising=False)
+    assert WebTools().fetcher() == "builtin"
+    monkeypatch.setenv("MARVI_WEB_FETCHER", "not-a-reader")
+    assert WebTools().fetcher() == "builtin"
+
+
+def test_trafilatura_extracts_locally(monkeypatch) -> None:
+    monkeypatch.setenv("MARVI_WEB_FETCHER", "trafilatura")
+    monkeypatch.setitem(
+        sys.modules,
+        "trafilatura",
+        types.SimpleNamespace(
+            extract=lambda body, **kwargs: '{"title":"Local title","text":"Local body"}'
+        ),
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text="<html><body>raw</body></html>", request=request)
+
+    result = WebTools(client=httpx.Client(transport=httpx.MockTransport(handler))).extract(
+        "https://example.com/article"
+    )
+    assert result["fetcher"] == "trafilatura"
+    assert result["title"] == "Local title"
+    assert result["text"] == "Local body"
+
+
+def test_jina_reader_uses_hosted_reader_and_optional_api_key(monkeypatch) -> None:
+    monkeypatch.setenv("MARVI_WEB_FETCHER", "jina")
+    monkeypatch.setenv("JINA_API_KEY", "jina-secret")
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, text="# Hosted title\n\nHosted body", request=request)
+
+    result = WebTools(client=httpx.Client(transport=httpx.MockTransport(handler))).extract(
+        "https://example.com/article"
+    )
+    assert seen[0].url == "https://r.jina.ai/https://example.com/article"
+    assert seen[0].headers["authorization"] == "Bearer jina-secret"
+    assert result == {
+        "url": "https://example.com/article",
+        "status": 200,
+        "title": "Hosted title",
+        "text": "# Hosted title\n\nHosted body",
+        "truncated": False,
+        "fetcher": "jina",
+    }
 
 
 # -- search providers -------------------------------------------------------

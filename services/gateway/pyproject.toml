@@ -17,6 +17,9 @@ dependencies = [
     "apscheduler>=3.10,<4",
     "fastapi>=0.116,<1",
     "httpx>=0.28,<1",
+    # Optional page extraction selected from Preferences. The import remains
+    # lazy so the built-in reader still works in minimal Gateway installs.
+    "trafilatura>=2.2,<3",
     # Resource accounting imports psutil directly. Keep it explicit so a clean
     # Gateway-only install has the same runtime modules as the workspace.
     "psutil>=7,<8",

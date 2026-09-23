@@ -1,5 +1,18 @@
 # Upstream Reuse Ledger
 
+## Web page readers — 2026-09-23
+
+- [Trafilatura](https://trafilatura.readthedocs.io/en/latest/) 2.2.x, Apache-2.0,
+  declared as the Gateway dependency and invoked through its documented
+  `extract(..., output_format="json", with_metadata=True)` API. Marvi owns the
+  bounded HTTP fetch, SSRF guard, provider selection, and result envelope; the
+  extraction algorithm is unchanged. Update the pin/range with the Gateway
+  lockfile and rerun web tool tests.
+- [Jina Reader](https://r.jina.ai/docs), hosted service, API access controlled
+  by the optional `JINA_API_KEY`. Marvi uses the documented `https://r.jina.ai/{url}`
+  reader endpoint and keeps the target URL validation and untrusted-data
+  envelope in the Gateway. Recheck the endpoint contract before changing it.
+
 ## Arabic interface and RTL acceptance — 2026-09-23
 
 - [`@fontsource-variable/noto-sans-arabic`](https://fontsource.org/fonts/noto-sans-arabic),

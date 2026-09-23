@@ -116,6 +116,11 @@ Cortex has durable episodic and semantic memory, a graph view, provenance, refle
 
 Marvi can search the web, work with files, use clipboard and media controls, schedule jobs, and call connected tools. File changes made through Marvi's file tools keep a checkpoint you can restore from Activity.
 
+Web page reading is selectable in Settings → Preferences: use the built-in
+reader, local [Trafilatura](https://trafilatura.readthedocs.io/), or hosted
+[Jina Reader](https://r.jina.ai/docs). The selected reader is applied by the
+Gateway's `web_extract` tool and the result identifies which reader ran.
+
 Longer tasks can go to a specialist while you keep talking:
 
 | Specialist | Helps with | What you see |

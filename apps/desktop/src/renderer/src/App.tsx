@@ -16,6 +16,7 @@ import {
   Database,
   Eye,
   FolderOpen,
+  Globe,
   Gauge,
   History,
   House,
@@ -6860,10 +6861,15 @@ function PreferencesPanel({
   const interfaceLocale = useStore($interfaceLocale)
   const interfaceDirection = useStore($interfaceDirection)
   const [deferredTools, setDeferredTools] = useState(false)
+  const [webFetcher, setWebFetcher] = useState('builtin')
   useEffect(() => {
     let gone = false
     void window.marvi?.getProviders().then((page) => {
-      if (!gone) setDeferredTools(page?.settings?.MARVI_DEFER_TOOLS === 'lazy')
+      if (!gone) {
+        setDeferredTools(page?.settings?.MARVI_DEFER_TOOLS === 'lazy')
+        const selected = page?.settings?.MARVI_WEB_FETCHER
+        setWebFetcher(selected === 'trafilatura' || selected === 'jina' ? selected : 'builtin')
+      }
     })
     return () => {
       gone = true
@@ -7000,6 +7006,31 @@ function PreferencesPanel({
             interfaceLocale
           )}
           title={t('Deferred Marvi tools', interfaceLocale)}
+        />
+      </ControlSection>
+
+      <ControlSection icon={Globe} title={t('Web content', interfaceLocale)}>
+        <ControlRow
+          action={
+            <Picker
+              options={[
+                { value: 'builtin', label: t('Built-in', interfaceLocale) },
+                { value: 'trafilatura', label: t('Trafilatura · local', interfaceLocale) },
+                { value: 'jina', label: t('Jina Reader · hosted', interfaceLocale) }
+              ]}
+              value={webFetcher}
+              onChange={(next) => {
+                const selected = next === 'trafilatura' || next === 'jina' ? next : 'builtin'
+                setWebFetcher(selected)
+                void window.marvi?.setProviderSettings({ MARVI_WEB_FETCHER: selected })
+              }}
+            />
+          }
+          description={t(
+            'Choose how web pages are turned into readable text. Trafilatura fetches and extracts locally; Jina Reader sends the URL to its hosted service. Built-in keeps the current plain HTML reader.',
+            interfaceLocale
+          )}
+          title={t('Page reader', interfaceLocale)}
         />
       </ControlSection>
 
