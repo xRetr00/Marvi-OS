@@ -456,7 +456,12 @@ def test_what_the_plugins_already_know_reaches_the_prompt(tmp_path) -> None:
 
     list(chat.send_stream("what am I doing?"))
 
-    assert "the owner is at the desk" in bodies[0]["messages"][0]["content"]
+    context = next(
+        message["content"]
+        for message in bodies[0]["messages"]
+        if message["role"] == "system" and message is not bodies[0]["messages"][0]
+    )
+    assert "the owner is at the desk" in context
 
 
 def test_a_plugin_that_throws_does_not_take_the_turn_down(tmp_path) -> None:
@@ -523,7 +528,12 @@ def test_what_marvi_remembers_reaches_the_prompt(tmp_path) -> None:
 
     list(chat.send_stream("how do I take my coffee?"))
 
-    assert "takes their coffee black" in bodies[0]["messages"][0]["content"]
+    context = next(
+        message["content"]
+        for message in bodies[0]["messages"]
+        if message["role"] == "system" and message is not bodies[0]["messages"][0]
+    )
+    assert "takes their coffee black" in context
 
 
 def test_recall_that_finds_nothing_adds_nothing(tmp_path) -> None:
@@ -540,7 +550,11 @@ def test_recall_that_finds_nothing_adds_nothing(tmp_path) -> None:
 
     list(chat.send_stream("something never mentioned before"))
 
-    assert "What you remember" not in bodies[0]["messages"][0]["content"]
+    assert not any(
+        "What you remember" in message["content"]
+        for message in bodies[0]["messages"]
+        if message["role"] == "system"
+    )
 
 
 def test_a_broken_memory_store_does_not_end_the_turn(tmp_path) -> None:

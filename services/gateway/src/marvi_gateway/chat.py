@@ -71,6 +71,7 @@ HISTORY_ROWS = 200
 #: whole archive on every message.
 RECALL_LIMIT = 5
 RECALL_CHARS = 1200
+VOLATILE_CONTEXT_CHARS = 12_000
 # Four was too few for anything researched: "who won the World Cup in 2026"
 # spent all of them searching and hit the wall. Bounded still, because a model
 # that loops on tools burns money and time with nothing to show, but bounded
@@ -1156,47 +1157,33 @@ class Chat:
             logger.warning("recall unavailable: %s", exc)
             return ""
 
-    def _system(self, gap: Any = None, recalled: str = "", surface: str = "chat") -> str:
-        # Identity leads, then the chat brief. Identity is byte-identical every
-        # turn, which is what makes the prefix cacheable.
-        # The date leads the changing half: it is the shortest line here and the
-        # one whose absence produced the most confident wrong answers.
-        brief = system_prompt(surface) + "\n\n" + situation()
-        if self.curiosity is not None:
-            # Appended after the cacheable identity block, because this part
-            # legitimately changes: it carries at most one question, and only
-            # when the rate limit allows one.
-            brief = brief + "\n\n" + self.curiosity.guidance(gap)
-        # What the loaded plugins already know, in a line each.
-        #
-        # `plugins.context_lines` is the bounded public path for ambient room
-        # state. The plugins were passed in here and never read before this
-        # call site was added.
-        #
-        # Appended after the identity block for the same reason curiosity is:
-        # this changes every turn, and putting it first would break the
-        # cacheable prefix.
-        lines = self._plugin_context()
-        if lines:
-            brief = "\n\n".join([brief, *lines])
-        # Where she is installed, and what she knows how to do. Both belong
-        # here rather than in the cacheable identity block: the first changes
-        # when Marvi is moved or updated, the second whenever a skill is
-        # installed. Both are short, and both were things she was left to
-        # guess at -- the whole skills pipeline installed skills the model
-        # was never told existed.
-        brief = "\n\n".join([brief, selfaware.situation(), *self._skill_catalogue()])
-        # Recall last, and after the identity block for the same reason:
-        # it is different on every turn and would break the cacheable prefix.
+    def _system(self, surface: str = "chat") -> str:
+        """Return only stable identity and instructions for prefix reuse."""
+        # SOUL.md contains spoken-room rules. Keep those on Voice; typed Chat
+        # retains USER.md standing context but owns its own written style.
+        return self.identity.compose(system_prompt(surface), in_character=surface != "chat")
+
+    def _volatile_context(
+        self,
+        gap: Any = None,
+        recalled: str = "",
+        summary: str = "",
+    ) -> str:
+        """Build bounded per-turn context after history, before the user."""
+        blocks = [situation()]
+        if summary:
+            blocks.append(f"Earlier conversation summary:\n{summary}")
+        if self.curiosity is not None and (guidance := self.curiosity.guidance(gap)):
+            blocks.append(guidance)
+        blocks.extend(self._plugin_context())
+        blocks.extend([selfaware.situation(), *self._skill_catalogue()])
         if recalled:
-            brief = "\n\n".join([brief, recalled])
-        # SOUL.md is the spoken-room persona. Its brevity and turn-taking rules
-        # are correct for LiveKit voice, but they were leaking into typed Chat
-        # (and into the model's visible reasoning) with instructions such as
-        # "one thought per turn" and "usually heard, not read". Keep the
-        # user's standing context, while letting the Chat prompt own written
-        # length and structure.
-        return self.identity.compose(brief, in_character=surface != "chat")
+            blocks.append(recalled)
+        context = "\n\n".join(block for block in blocks if block.strip())
+        if len(context) <= VOLATILE_CONTEXT_CHARS:
+            return context
+        trimmed = context[:VOLATILE_CONTEXT_CHARS].rsplit("\n", 1)[0].rstrip()
+        return trimmed + "\n[context truncated]"
 
     def _recent(self, thread_id: str = DEFAULT_THREAD_ID) -> list[dict[str, Any]]:
         """The last `HISTORY_TURNS` exchanges, whole.
@@ -1294,20 +1281,20 @@ class Chat:
         APIs are close to it; `build_request` turns it into Anthropic's content
         blocks and the Responses API's items.
         """
-        wire: list[dict[str, Any]] = [
-            {"role": "system", "content": self._system(gap, recalled, surface)}
-        ]
-        # What fell out of the window, in one line, before what is still in it.
-        # Without this a long conversation simply forgets its own beginning:
-        # the twenty-fifth turn cannot see the first, and the user can.
-        if earlier := self.store.summary_of(thread_id).get("summary"):
-            wire.append(
-                {
-                    "role": "system",
-                    "content": f"Earlier in this conversation: {earlier}",
-                }
-            )
-        for row in self._recent(thread_id):
+        summary = str(self.store.summary_of(thread_id).get("summary") or "")
+        wire: list[dict[str, Any]] = [{"role": "system", "content": self._system(surface)}]
+        # Keep the stable system message immediately followed by replayed
+        # history. The one volatile context block is inserted only before the
+        # active user message, so changing it does not invalidate the prefix.
+        rows = self._recent(thread_id)
+        last_user = max(
+            (index for index, row in enumerate(rows) if row["role"] == "user"),
+            default=-1,
+        )
+        context = self._volatile_context(gap, recalled, summary)
+        for index, row in enumerate(rows):
+            if index == last_user and context:
+                wire.append({"role": "system", "content": context})
             if row["role"] in ("user", "assistant"):
                 content = (
                     self.store.provider_content(int(row["id"]), row["content"])

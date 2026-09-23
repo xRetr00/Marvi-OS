@@ -250,6 +250,35 @@ def test_voice_soul_does_not_limit_typed_chat_but_user_context_does(store, tmp_p
     assert "detailed written answers" in prompt
 
 
+def test_stable_system_and_history_precede_volatile_context(store, tmp_path) -> None:
+    from marvi_gateway.identity import IdentityFiles
+
+    files = IdentityFiles(tmp_path)
+    files.write_user("Standing context")
+    store.append("user", "old question")
+    store.append("assistant", "old answer")
+    store.append("user", "current question")
+    chat = Chat(store=store, identity=files)
+
+    first = chat._messages(recalled="memory one")
+    second = chat._messages(recalled="memory two")
+
+    assert first[0] == second[0]
+    assert [message["role"] for message in first] == [
+        "system",
+        "user",
+        "assistant",
+        "system",
+        "user",
+    ]
+    assert first[1]["content"] == "old question"
+    assert first[2]["content"] == "old answer"
+    assert "memory one" in first[3]["content"]
+    assert "memory two" in second[3]["content"]
+    assert first[3]["content"] != second[3]["content"]
+    assert first[4]["content"] == "current question"
+
+
 def test_no_provider_is_a_clear_message_not_a_crash(store, monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(
         "marvi_gateway.providers.ProviderClient.candidates", lambda self, preferred=None: []

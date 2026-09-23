@@ -1,5 +1,28 @@
 # Implementation Log
 
+## 2026-09-23 — Stable chat prefix and bounded volatile context
+
+- Split Chat prompt assembly into a stable identity/instruction system message
+  and a bounded 12,000-character volatile context message. The latter carries
+  date/time, the rolling summary, automatic memory recall, curiosity, plugin
+  ambient state, self-awareness, and the skill catalogue.
+- Replayed conversation history now sits immediately after the stable system
+  message. The volatile context is inserted immediately before the active user
+  message, preserving the stable prefix and history for provider KV-cache
+  reuse. The stable system message is byte-identical across changing recall
+  context, covered by Gateway regression tests.
+- Verified the running Gemma 4 QAT GGUF through llama.cpp `/props` and
+  `/apply-template`: the model supports system roles and tools, and renders
+  `system → user history → system volatile context → user current turn →
+  model generation` as separate `<|turn|>` blocks with the expected
+  `<|think|>` system preamble.
+- Tokenized two rendered prompts with llama.cpp `/tokenize` using the same
+  stable prefix, history, and current-turn shape while changing only volatile
+  date/context. Longest common prefix improved from 34/75 tokens (45.33%) with
+  volatile content inside the initial system message to 58/79 tokens (73.42%)
+  with the separated layout. This is a rendered-template LCP measurement, not
+  a claim that llama-server's cache remained resident between unrelated runs.
+
 ## 2026-09-23 — Easy locale expansion
 
 - Generalized interface locale registration, persistence validation, native

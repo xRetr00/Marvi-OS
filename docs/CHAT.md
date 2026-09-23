@@ -47,6 +47,11 @@ ephemeral input state.
   turn-taking rules such as “one thought per turn” and “usually heard, not
   read” stay on Voice. User-authored standing context remains available to
   Chat.
+- Chat keeps the stable identity/tool prefix byte-identical, replays history
+  directly after it, and places date/time, automatic memory recall, curiosity,
+  plugin ambient state, self-awareness, and skill context in one bounded
+  message immediately before the active user turn. This layout is designed for
+  llama.cpp longest-common-prefix KV-cache reuse.
 
 Handed-off work is reported back. When a `delegate` or `delegate_to_coder` job
 this thread started ends (per the `/agents` feed) and no turn is running, the

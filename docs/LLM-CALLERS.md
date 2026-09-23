@@ -10,7 +10,7 @@ Traced from the code, not from memory.
 
 | Consumer | How it reaches a provider | Through `ProviderClient`? | What identity it sends |
 |---|---|---|---|
-| **Chat** (`chat.py`) | `ProviderClient.call_with_fallback()` | **Yes** | `identity.compose()` — SOUL.md, USER.md, the chat brief, curiosity guidance, plugin context lines |
+| **Chat** (`chat.py`) | `ProviderClient.call_with_fallback()` | **Yes** | Stable `identity.compose()` prefix, replayed history, then one bounded volatile context message before the active user turn |
 | **Cortex mind** (`mind.py` → `deliberate.py`) | shared `CognitionHarness` → `ProviderClient.call_with_fallback(job="aux")`, Auxiliary `mind` role | **Yes** | SOUL.md, USER.md, current date/time, bounded decision task, event envelope; bounded read-only tools |
 | **Presence judgement** (`presence.py`) | `ProviderClient.call_with_fallback(job="aux")`, Auxiliary `mind` role | **Yes** | a presence-specific bounded prompt |
 | **Cortex reflection** (`memory.py` → `distil.py`) | shared `CognitionHarness` → `ProviderClient.call_with_fallback(job="aux")`, Auxiliary `memory` role | **Yes** | SOUL.md, USER.md, current date/time, repeated subjects/counts; bounded memory/web/workspace reads |
@@ -58,9 +58,12 @@ and Vision still have separate latency/media-specific call paths.
 The remaining identity gap is Voice and Vision, not Mind or memory reflection.
 
 **Is the harness sent on every turn?** For chat, yes: `_system()` runs per turn
-and `identity.compose()` is called each time, with the identity block first
-precisely so the prefix stays byte-identical and cacheable, and the volatile
-parts — curiosity, plugin context — appended after it. For voice, LiveKit sends
+and `identity.compose()` is called each time. Its output is the stable first
+system message; replayed history follows it immediately, and date/time,
+summary, automatic memory recall, curiosity, plugin context, self-awareness,
+and skills are one bounded system message immediately before the active user
+turn. This keeps the stable identity/tool prefix byte-identical for llama.cpp
+longest-common-prefix reuse. For voice, LiveKit sends
 `instructions` once when the `Agent` is constructed and reuses it for the
 session. For mind and vision, a constant goes out with each request.
 
