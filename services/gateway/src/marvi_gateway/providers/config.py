@@ -72,12 +72,14 @@ def write(values: dict[str, str], path: Path | None = None) -> Path:
 
 def load_into_environ(path: Path | None = None) -> int:
     """Apply saved settings; explicit blanks durably clear inherited values."""
+    from ..context_policy import SETTINGS
+
     applied = 0
     for name, value in read(path).items():
         if value == "":
             os.environ.pop(name, None)
             applied += 1
-        elif not os.environ.get(name, "").strip():
+        elif name in SETTINGS or not os.environ.get(name, "").strip():
             os.environ[name] = value
             applied += 1
     return applied

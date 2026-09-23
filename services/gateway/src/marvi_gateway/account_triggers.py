@@ -118,6 +118,10 @@ class AccountTriggerIngest:
         return kept[0] if kept else item
 
     def ingest(self, raw: Any) -> dict[str, Any]:
+        from . import context_policy
+
+        if not context_policy.event_allowed("accounts"):
+            return {"ignored": True, "reason": "account context is disabled"}
         event = _as_dict(raw)
         if not isinstance(event, dict):
             raise ValueError("trigger payload must be an object")

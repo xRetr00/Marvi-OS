@@ -29,6 +29,7 @@ from . import (
     auxiliary,
     breadcrumb,
     calendarview,
+    context_policy,
     continuity,
     conversation,
     delegate,
@@ -1255,7 +1256,7 @@ def create_app(
 
     dictation.enabled = lambda: not resource_state()["low_resource"]
     if hasattr(one_shot, "enabled"):
-        one_shot.enabled = lambda: not resource_state()["low_resource"]
+        one_shot.enabled = lambda: announce_enabled() and not resource_state()["low_resource"]
 
     #: The timer that will clear a held announcement, so a second one cancels
     #: the first rather than being wiped by it a moment later.
@@ -1351,6 +1352,7 @@ def create_app(
     mcp: McpBridge | None = None
     loaded_plugins: list[plugins_module.LoadedPlugin] = []
     plugin_update_lock = asyncio.Lock()
+    context_settings_lock = asyncio.Lock()
 
     def restart_plugin(name: str) -> None:
         plugin = next((item for item in loaded_plugins if item.name == name), None)
@@ -1538,12 +1540,12 @@ def create_app(
                     tools=tool_registry,
                     harness=cognition,
                 ),
-                announcer=one_shot if announce_enabled() else None,
+                announcer=one_shot,
                 identity=identity,
                 # Whether they are out, so "someone is in the room" can be the
                 # warning it should be rather than a pleasantry. `None` when
                 # nothing knows, which keeps the pleasant reading.
-                presence=lambda: _somewhere_else(sidecar),
+                presence=lambda: _somewhere_else(sidecar) if context_policy.room_allowed("mind") else None,
             ),
             journal,
             waiting=waiting_room,
@@ -1615,7 +1617,7 @@ def create_app(
 
     from .alarms import Alarms
 
-    alarm_bell = Alarms(one_shot if announce_enabled() else None)
+    alarm_bell = Alarms(one_shot)
 
     # Questions Marvi puts on screen, and the follow-up when nobody answers.
     from . import inline_ask
@@ -1727,7 +1729,7 @@ def create_app(
                     "set_low_power", {"low_power": bool(easy)}
                 )
             initiative.start()
-        if account_triggers is not None and accounts is not None and accounts.available():
+        if context_policy.event_allowed("accounts") and account_triggers is not None and accounts is not None and accounts.available():
             account_triggers.start()
         if scheduler is not None:
             # The journal and initiative are wired in here rather than at
@@ -3668,6 +3670,8 @@ def create_app(
         about was, in practice, forgotten. Asked her own name, Marvi did not
         look it up; she wrote it down again, five times.
         """
+        if memory is None or not context_policy.allows("memory"):
+            return {"block": ""}
         # On a worker thread: an embedding and a search, and on the loop it
         # held up every other request -- the "event loop was blocked" lines.
         block = await anyio.to_thread.run_sync(
@@ -3700,7 +3704,7 @@ def create_app(
         # front of a spoken reply is latency for one sentence.
         if notes := _worker_notes():
             block = block + chr(10) * 2 + notes if block else notes
-        return {"block": block}
+        return {"block": block if context_policy.allows("memory") else ""}
 
     @app.post("/session/ended", status_code=202)
     async def session_ended(body: dict[str, Any]) -> dict[str, Any]:
@@ -4088,7 +4092,7 @@ def create_app(
         request that does not exist is a prompt the model has to disagree with
         to be right.
         """
-        blocks = {"situation": selfaware.situation()}
+        blocks = {"situation": selfaware.situation() if context_policy.allows("system") else ""}
         # Who Marvi is and who she is talking to, which voice never had.
         #
         # `identity.py` states the contract in its own docstring -- "`USER.md`
@@ -4146,14 +4150,14 @@ def create_app(
         #
         # Read from disk here and rebuilt on a background thread, so no turn
         # ever waits for the model call that writes it.
-        if brief := standing.block():
-            blocks["standing"] = brief
+        if context_policy.allows("memory") and (standing_text := standing.block()):
+            blocks["standing"] = standing_text
         # Guarded: a Gateway built without a memory provider still serves
         # `/context`, and the brief it cannot rebuild is the one already on
         # disk rather than a 500 on the request that carries the persona.
-        if memory is not None:
+        if memory is not None and context_policy.allows("memory"):
             standing.ensure(memory.local.store, cognition)
-        if carry := continuity.block():
+        if context_policy.allows("continuity") and (carry := continuity.block()):
             blocks["continuity"] = carry
         # What is true right now: the room, the desktop, and what they have
         # been doing today.
@@ -4165,24 +4169,24 @@ def create_app(
         # happened to think of. Composed from what the Gateway already holds,
         # so no spoken turn waits on a sensor.
         with contextlib.suppress(Exception):
-            snapshot = sidecar.snapshot() if sidecar is not None else None
-            seeing = activity.world_context() if activity.available() else None
+            snapshot = sidecar.snapshot() if sidecar is not None and context_policy.room_allowed() else None
+            seeing = activity.world_context() if context_policy.allows("activity") and activity.available() else None
             if world := worldnow.describe(
                 snapshot,
                 seeing,
-                recent_apps=activity.used_today() if activity.available() else None,
+                recent_apps=activity.used_today() if context_policy.allows("activity") and activity.available() else None,
             ):
                 blocks["world"] = world
         # Connectors page polls, so no turn waits on Composio.
         if accounts is not None and accounts.available():
             try:
-                blocks["accounts"] = connected_accounts.describe(accounts.cached_connections())
+                blocks["accounts"] = connected_accounts.describe(accounts.cached_connections()) if context_policy.allows("accounts") else ""
             except Exception as exc:  # pragma: no cover - depends on the provider
                 get_logger("gateway").info("could not list connected accounts: %s", exc)
         try:
             from .setup import skills as skills_module
 
-            blocks["skills"] = skills_module.advertise()
+            blocks["skills"] = skills_module.advertise() if context_policy.allows("skills") else ""
         except Exception as exc:  # pragma: no cover - depends on what is on disk
             get_logger("gateway").warning("skill catalogue unavailable: %s", exc)
             blocks["skills"] = ""
@@ -4216,7 +4220,8 @@ def create_app(
             from . import prompts
 
             blocks["tools_brief"] = prompts.text("lazy-tools")
-        return {"blocks": ordered_context_blocks(blocks)}
+        return {"blocks": ordered_context_blocks(blocks),
+                "memory_allowed": context_policy.allows("memory")}
 
     @app.get("/skills")
     async def list_skills() -> dict[str, Any]:
@@ -5518,7 +5523,7 @@ def create_app(
         return ProviderPage(
             providers=rows,
             selected=os.environ.get("MARVI_PROVIDER", "").strip() or None,
-            settings=provider_config.visible(),
+            settings={**provider_config.visible(), **context_policy.visible()},
             totals=snapshot["totals"],
         )
 
@@ -5610,6 +5615,9 @@ def create_app(
                 detail=f"{WEB_FETCHER_SETTING} must be one of: {', '.join(WEB_FETCHERS)}",
             )
         values = dict(update.values)
+        for key, value in values.items():
+            if key in context_policy.SETTINGS and value not in ("true", "false"):
+                raise HTTPException(status_code=422, detail=f"{key} must be true or false")
         # Choosing a local model is an offline-runtime decision, not only a
         # label for the Models page.  Without this, the main call used the
         # selected local provider while auxiliary work and voice could still
@@ -5624,7 +5632,24 @@ def create_app(
                 values["MARVI_LOCAL_ONLY"] = (
                     "true" if profile.access_path == "local" else "false"
                 )
-        provider_config.update(values)
+        async with context_settings_lock:
+            provider_config.update(values)
+            if "MARVI_MIND_ENABLED" in values:
+                if not context_policy.mind_enabled():
+                    one_shot.stop()
+                    if initiative is not None:
+                        await asyncio.to_thread(initiative.stop, wait=True)
+                elif initiative is not None:
+                    initiative.start()
+            if any(key in values for key in ("MARVI_MIND_ENABLED", "MARVI_CONTEXT_MIND_ACCOUNTS")) and account_triggers is not None:
+                if not context_policy.event_allowed("accounts"):
+                    await asyncio.to_thread(account_triggers.stop)
+                elif accounts is not None and accounts.available():
+                    account_triggers.start()
+            if (any(key in values for key in ("MARVI_MIND_ENABLED", "MARVI_ANNOUNCE"))
+                    and not announce_enabled()):
+                release = getattr(one_shot, "release", one_shot.stop)
+                await asyncio.to_thread(release)
         # A key typed in a moment ago must not appear in the next log line.
         redactor().refresh()
         # Connecting a provider that was cooling down should retry it, not wait

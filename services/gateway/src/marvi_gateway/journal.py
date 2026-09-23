@@ -22,6 +22,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from . import context_policy
+
 DEDUPE_WINDOW_SECONDS = 6 * 60 * 60
 
 
@@ -137,6 +139,8 @@ class EventJournal:
         between, and she said nothing the second time -- because "FC 26
         started" is the same sentence and the fingerprint is the sentence.
         """
+        if not context_policy.event_allowed(source, kind):
+            return None
         body = payload or {}
         mark = fingerprint(source, kind, summary, body)
         moment = now or datetime.now(UTC)

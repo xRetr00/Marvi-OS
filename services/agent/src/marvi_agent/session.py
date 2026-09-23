@@ -457,6 +457,8 @@ class _Prefetch:
             return
 
         async def install() -> None:
+            if not getattr(agent, "context_memory_allowed", True):
+                return
             context = agent.chat_ctx.copy()
             # The previous block goes first. A prefetch runs per sentence, and
             # two left behind would put a stale question's memories in front of
@@ -1005,6 +1007,9 @@ class MarviVoiceAgent(Agent):
     def __init__(self, *, tools: GatewayTools | None = None) -> None:
         #: What the user has lately put her right about. See `corrections`.
         self._corrections = corrections.Corrections()
+        self.context_gateway: GatewayTools | None = None
+        self.context_base = ""
+        self.context_memory_allowed = True
         super().__init__(
             # Every sentence of this lives in `prompts/voice-assistant.md`.
             #
@@ -1048,6 +1053,39 @@ class MarviVoiceAgent(Agent):
         """
         return Agent.default.tts_node(self, _without_markup(text), model_settings)
 
+    async def refresh_context(self, turn_ctx: llm.ChatContext | None = None) -> None:
+        """Replace automatic context each turn; never append successive snapshots.
+
+        LiveKit's update_instructions and mutable turn context are documented at
+        https://docs.livekit.io/agents/logic/chat-context/ and /reference/python/livekit/agents/.
+        """
+        if self.context_gateway is None:
+            return
+        blocks = await self.context_gateway.context_blocks()
+        self.context_memory_allowed = getattr(self.context_gateway, "context_memory_allowed", False)
+        previous = self.instructions
+        current = self.context_base + ("\n\n" + "\n\n".join(blocks) if blocks else "")
+        if current != previous:
+            await self.update_instructions(current)
+            # LiveKit already copied the instructions into this pending turn.
+            if turn_ctx is not None:
+                for item in turn_ctx.items:
+                    if getattr(item, "role", None) == "system" and item.text_content == previous:
+                        item.content = [current]
+        if not self.context_memory_allowed:
+            def without_recall(items):
+                return [item for item in items if not (
+                    getattr(item, "role", None) == "system"
+                    and STAGED in str(getattr(item, "content", ""))
+                )]
+            if turn_ctx is not None:
+                turn_ctx.items[:] = without_recall(turn_ctx.items)
+            persistent = self.chat_ctx.copy()
+            kept = without_recall(persistent.items)
+            if len(kept) != len(persistent.items):
+                persistent.items[:] = kept
+                await self.update_chat_ctx(persistent)
+
     async def on_user_turn_completed(
         self, turn_ctx: llm.ChatContext, new_message: llm.ChatMessage
     ) -> None:
@@ -1056,6 +1094,7 @@ class MarviVoiceAgent(Agent):
         # Corrected before anything reads it: the model, the memory, and the
         # transcript on screen all see the same sentence, and it is the one
         # with the names in it.
+        await self.refresh_context(turn_ctx)
         text = _heard_correctly(" ".join(str(part) for part in new_message.content).strip())
         if text:
             new_message.content = [text]
@@ -1112,8 +1151,8 @@ class MarviVoiceAgent(Agent):
             turn_ctx.add_message(role="system", content=twice)
             log.info("she has said the same thing twice; saying so")
 
-        if not needs_memory(text):
-            log.info("recall: skipped, nothing in this turn to look up")
+        if not self.context_memory_allowed or not needs_memory(text):
+            log.info("recall: skipped, disabled or nothing in this turn to look up")
             return
 
         # Already in the agent's context when the speculation snapshotted it,
@@ -2136,15 +2175,9 @@ async def marvi_session(ctx: JobContext) -> None:
     # Only when it is true. See `GatewayTools.defers`.
     if gateway.defers():
         blocks.append(TOOL_SEARCH_NOTE)
-    if blocks := blocks + await gateway.context_blocks():
-        # Awaited. `inspect.signature` reports `-> None` and it is a coroutine
-        # function, so checking the signature said "synchronous" and the call
-        # returned a coroutine nobody ran -- every skill catalogue and every
-        # location block silently discarded, with one RuntimeWarning per
-        # session as the only sign. Ask `iscoroutinefunction`, not the return
-        # annotation.
-        await agent.update_instructions(agent.instructions + "\n\n" + "\n\n".join(blocks))
-        log.info("prompt: %d context block(s) from the Gateway", len(blocks))
+    agent.context_gateway = gateway
+    agent.context_base = agent.instructions + ("\n\n" + "\n\n".join(blocks) if blocks else "")
+    await agent.refresh_context()
 
 
 #: Ready means two things, and it used to mean one.

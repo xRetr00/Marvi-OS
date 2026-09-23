@@ -37,7 +37,17 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from . import hooks, inline_ask, language, latency, mentions, runs, selfaware, tool_call_prose
+from . import (
+    context_policy,
+    hooks,
+    inline_ask,
+    language,
+    latency,
+    mentions,
+    runs,
+    selfaware,
+    tool_call_prose,
+)
 from .chat_widgets import (
     external_payload,
     external_text,
@@ -1154,7 +1164,7 @@ class Chat:
         surface ended up unable to remember anything it had not been asked to
         look up. One implementation, in the store, used by both.
         """
-        if self.memory is None:
+        if self.memory is None or not context_policy.allows("memory"):
             return ""
         try:
             return self.memory.recall_block(text, limit=RECALL_LIMIT, budget=RECALL_CHARS)
@@ -1179,13 +1189,17 @@ class Chat:
     ) -> str:
         """Build bounded per-turn context after history, before the user."""
         blocks = [situation()]
-        if summary:
+        if summary and context_policy.allows("continuity"):
             blocks.append(f"Earlier conversation summary:\n{summary}")
-        if self.curiosity is not None and (guidance := self.curiosity.guidance(gap)):
+        if (context_policy.mind_enabled() and context_policy.allows("mind")
+                and self.curiosity is not None and (guidance := self.curiosity.guidance(gap))):
             blocks.append(guidance)
         blocks.extend(self._plugin_context())
-        blocks.extend([selfaware.situation(), *self._skill_catalogue()])
-        if recalled:
+        if context_policy.allows("system"):
+            blocks.append(selfaware.situation())
+        if context_policy.allows("skills"):
+            blocks.extend(self._skill_catalogue())
+        if recalled and context_policy.allows("memory"):
             blocks.append(recalled)
         context = "\n\n".join(block for block in blocks if block.strip())
         if len(context) <= VOLATILE_CONTEXT_CHARS:

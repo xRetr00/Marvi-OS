@@ -850,9 +850,11 @@ class GatewayTools:
                 },
             )
             response.raise_for_status()
+            self.context_memory_allowed = response.json().get("memory_allowed", True) is True
             blocks = response.json().get("blocks") or []
             return [str(block) for block in blocks if str(block).strip()]
         except Exception as exc:
+            self.context_memory_allowed = False
             log.warning("could not read the prompt context: %s", exc)
             return []
         finally:

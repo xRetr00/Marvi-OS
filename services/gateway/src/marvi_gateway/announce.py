@@ -179,7 +179,9 @@ class AnnounceUnavailableError(Exception):
 
 
 def announce_enabled() -> bool:
-    return os.environ.get("MARVI_ANNOUNCE", "1").strip().lower() not in ("0", "off", "false")
+    from . import context_policy
+
+    return context_policy.mind_enabled() and context_policy.enabled("MARVI_ANNOUNCE")
 
 
 def marker_path() -> Path:
@@ -292,7 +294,7 @@ class Announcer:
         self._serial = threading.Lock()
         self._state = threading.Lock()
         self._current: threading.Event | None = None
-        self.enabled: Any = lambda: True
+        self.enabled: Any = announce_enabled
 
     def warm(self) -> bool:
         """Load the voice now, so the first thing she says is not a cold start.
@@ -338,7 +340,10 @@ class Announcer:
         if "pytest" in sys.modules or not self.enabled():
             return False
         try:
-            self._ensure_model()
+            with self._serial:
+                if not self.enabled():
+                    return False
+                self._ensure_model()
         except Exception as exc:
             # Best effort. A voice that cannot warm fails the same way it
             # fails today: on the first announcement, with the fallback.
@@ -470,7 +475,7 @@ class Announcer:
             return {
                 "played": False,
                 "cancelled": False,
-                "error": "Voice not working in low-resource mode",
+                "error": "Announcer is disabled or unavailable in low-resource mode",
             }
         limit = MAX_READ_ALOUD_CHARS if purpose == "read_aloud" else MAX_PROACTIVE_CHARS
         spoken = " ".join((text or "").split())[:limit]
@@ -502,11 +507,15 @@ class Announcer:
         )
         try:
             with self._serial:
-                if cancelled.is_set():
+                if cancelled.is_set() or not self.enabled():
                     logger.info("announcement cancelled before synthesis")
                     return {"played": False, "cancelled": True, "error": ""}
                 for piece in pieces:
+                    if cancelled.is_set() or not self.enabled():
+                        return {"played": False, "cancelled": True, "error": ""}
                     pcm, rate = self.synthesize(piece)
+                    if cancelled.is_set() or not self.enabled():
+                        return {"played": False, "cancelled": True, "error": ""}
                     seconds += len(pcm) / 2 / rate
                     with self._wake_guard(purpose):
                         completed = self.player.play(pcm, rate, cancelled)

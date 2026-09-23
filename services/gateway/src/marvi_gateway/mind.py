@@ -23,7 +23,7 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from . import salience
+from . import context_policy, salience
 from .focus import windows_busy
 from .journal import EventJournal
 from .policy import (
@@ -220,11 +220,13 @@ class Mind:
         of one. Everything else still applies: it is still phrased by
         `voicing`, and an untrusted event is still phrased by a template.
         """
-        if self.waiting is None or self.announcer is None:
+        if not context_policy.mind_enabled() or self.waiting is None or self.announcer is None:
             return ""
         wanted = summary.strip().lower()
 
         def mine(event: dict[str, Any]) -> bool:
+            if not context_policy.event_allowed(event.get("source", ""), event.get("kind", "")):
+                return False
             if not wanted:
                 return True
             return wanted in str(event.get("summary", "")).lower()
@@ -268,6 +270,8 @@ class Mind:
         world = self.world(moment, conversation_active, present, at_machine, doing, asleep)
 
         def may_speak(event: dict[str, Any]) -> bool:
+            if not context_policy.event_allowed(event.get("source", ""), event.get("kind", "")):
+                return False
             # Held because no model would read it, and a model might now.
             # This is the whole "the rate limit has cleared, say it" case: the
             # item was kept, never summarised, and has been waiting for a
@@ -319,6 +323,8 @@ class Mind:
         doing: str = "",
         asleep: bool = False,
     ) -> dict[str, Any]:
+        if not context_policy.mind_enabled():
+            return {"considered": 0, "decisions": [], "surfaced": []}
         moment = now or datetime.now(UTC)
 
         # Anything held back earlier, offered again first.
@@ -351,6 +357,8 @@ class Mind:
         )
 
         for event in pending:
+            if not context_policy.event_allowed(event["source"], event["kind"]):
+                continue
             started = time.perf_counter()
             world = replace(
                 base,
@@ -484,7 +492,9 @@ class Mind:
                     f"{resolved_provider}/{resolved_model}" if resolved_model else resolved_provider
                 )
 
-            if surface == "remember" and self.memory is not None:
+            if not context_policy.event_allowed(event["source"], event["kind"]):
+                continue
+            if surface == "remember" and self.memory is not None and context_policy.allows("memory", "mind"):
                 # Rendered, not `str(dict)`. This is where two memories in the
                 # real store came to have a Python dict repr for a body:
                 #
@@ -515,6 +525,8 @@ class Mind:
             decided_in = (time.perf_counter() - started) * 1000
             said_started = time.perf_counter()
 
+            if not context_policy.event_allowed(event["source"], event["kind"]):
+                continue
             spoken = ""
             # Never load the voice for the first time while a game has the
             # machine. Warming happens at startup, so this is the case where

@@ -68,7 +68,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from . import paths
+from . import context_policy, paths
 from .hooks import EVENTS as RUNTIME_EVENTS
 from .logs import get_logger
 
@@ -772,6 +772,11 @@ def context_lines(loaded: list[LoadedPlugin], limit: int = 240) -> list[str]:
     lines = []
     for plugin in loaded:
         for name, provider in plugin.context.context_providers.items():
+            if plugin.name == "smart_room" or name == "room":
+                if not context_policy.room_allowed():
+                    continue
+            elif not context_policy.allows(name if name in context_policy.SOURCES else "plugins"):
+                continue
             try:
                 value = provider()
             except Exception as exc:

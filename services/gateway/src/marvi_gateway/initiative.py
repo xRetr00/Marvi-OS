@@ -23,6 +23,8 @@ import time
 from datetime import UTC, datetime
 from typing import Any
 
+from . import context_policy
+
 logger = logging.getLogger(__name__)
 
 STARTUP_GRACE = 90.0
@@ -148,7 +150,7 @@ class Initiative:
 
     @property
     def paused(self) -> bool:
-        return self.mind.settings.paused
+        return not context_policy.mind_enabled() or self.mind.settings.paused
 
     def set_paused(self, paused: bool) -> bool:
         """Pausing stops decisions, not observation.
@@ -157,7 +159,7 @@ class Initiative:
         back on shows what was missed instead of a silent gap.
         """
         self.mind.settings.paused = paused
-        return self.mind.settings.paused
+        return not context_policy.mind_enabled() or self.mind.settings.paused
 
     def status(self) -> dict[str, Any]:
         return {
@@ -206,7 +208,7 @@ class Initiative:
         return ""
 
     def _world_now(self) -> dict[str, Any]:
-        if self.room_state is None:
+        if self.room_state is None or not context_policy.room_allowed("mind"):
             return {}
         try:
             return dict(self.room_state() or {})
@@ -250,7 +252,7 @@ class Initiative:
             {
                 "id": key,
                 "label": label,
-                "wired": bool(wired),
+                "wired": bool(wired) and context_policy.event_allowed(key),
                 # Prefixes, because accounts are journalled as
                 # `accounts:gmail` and the row is about accounts as a whole.
                 "events": sum(n for source, n in counts.items() if source.startswith(key)),
@@ -263,6 +265,12 @@ class Initiative:
 
     def _guard(self, name: str, work: Any) -> Any:
         def run() -> None:
+            category = {"ingest": "accounts", "machine": "system",
+                        "self_check": "system", "quiet_feeds": "room", "weather": "weather",
+                        "reflect": "memory", "dream": "memory", "consolidate": "memory",
+                        "storage": "memory", "curiosity": "mind"}.get(name)
+            if not context_policy.mind_enabled() or (category and not context_policy.event_allowed(category)):
+                return
             started = time.perf_counter()
             logger.info("initiative job started", extra={"marvi_job": name})
             try:
@@ -300,7 +308,7 @@ class Initiative:
     def run_ingest(self) -> dict[str, Any]:
         """Pull account items and journal them. Ingestion runs even when paused
         so nothing is lost; only decisions stop."""
-        if self.ingest is None:
+        if self.ingest is None or not context_policy.event_allowed("accounts"):
             return {"ingested": []}
         result = self.ingest.poll()
         events = result.get("events", [])
@@ -428,7 +436,7 @@ class Initiative:
         Rides the machine watch's interval rather than its own: this fires on
         the *absence* of events, so there is nothing to be prompt about.
         """
-        if self.journal is None or self.room_state is None:
+        if self.journal is None or self.room_state is None or not context_policy.room_allowed("mind"):
             return {"quiet": 0}
         if self._quiet_feeds is None:
             from .quiet_feeds import Watcher
@@ -557,7 +565,7 @@ class Initiative:
 
     def _known_from_memory(self, gap: Any) -> str:
         """A memory that already answers this gap, as a line for USER.md, or empty."""
-        if self.memory is None or not getattr(gap, "known_by", ""):
+        if self.memory is None or not context_policy.allows("memory", "mind") or not getattr(gap, "known_by", ""):
             return ""
         import re
 
@@ -579,7 +587,8 @@ class Initiative:
         Reads the forecast `LocationService` already caches, so this adds at
         most one Open-Meteo request per ten minutes, and only with a location.
         """
-        if self.journal is None or self.weather is None:
+        if (not context_policy.event_allowed("weather")
+                or self.journal is None or self.weather is None):
             return {"warned": 0}
         data = self.weather.weather().get("data")
         if not data or not data.get("hourly", {}).get("time"):
@@ -599,8 +608,10 @@ class Initiative:
         return {"warned": len(fresh)}
 
     def run_mind(self) -> dict[str, Any]:
+        if not context_policy.mind_enabled():
+            return {"considered": 0, "decisions": [], "surfaced": []}
         present, conversation, asleep = True, False, False
-        if self.room_state is not None:
+        if self.room_state is not None and context_policy.room_allowed("mind"):
             try:
                 snapshot = self.room_state()
                 present = bool(snapshot.get("present", True))
@@ -619,7 +630,7 @@ class Initiative:
         # and it was registered only as tools the model could call -- so the
         # thing that decides whether to interrupt never read it.
         at_machine, doing = None, ""
-        if self.activity is not None:
+        if self.activity is not None and context_policy.allows("activity", "mind"):
             try:
                 context = self.activity.world_context()
                 idle = context.get("idle")
@@ -817,7 +828,7 @@ class Initiative:
         return datetime.fromtimestamp(max(due, time.time() + STARTUP_GRACE), UTC)
 
     def start(self) -> bool:
-        if self._scheduler is not None:
+        if not context_policy.mind_enabled() or self._scheduler is not None:
             return False
         from apscheduler.schedulers.background import BackgroundScheduler
 
@@ -898,8 +909,13 @@ class Initiative:
         )
         return True
 
-    def stop(self) -> None:
+    def stop(self, wait: bool = False) -> None:
         if self._scheduler is not None:
-            self._scheduler.shutdown(wait=False)
+            self._scheduler.shutdown(wait=wait)
             self._scheduler = None
             logger.info("initiative scheduler stopped")
+        if not context_policy.mind_enabled() and self.focus is not None:
+            self.focus.clear_automatic()
+            if self.pace_the_room is not None and not self.focus.low_resource:
+                with contextlib.suppress(Exception):
+                    self.pace_the_room(False)

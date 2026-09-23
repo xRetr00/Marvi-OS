@@ -387,6 +387,16 @@ class Focus:
 
     # -- the scheduled look --------------------------------------------------
 
+    def clear_automatic(self) -> None:
+        """Retire the watcher's last observation when Mind stops watching.
+
+        A game detected before shutdown must not hold voice off indefinitely.
+        The user's manual resource hold remains authoritative.
+        """
+        with self._lock:
+            self._heavy = self._candidate = ""
+            self._looks = 0
+
     def look(self) -> list[Change]:
         """Notice a demanding app arriving or leaving. Empty most of the time."""
         if self.activity is None:

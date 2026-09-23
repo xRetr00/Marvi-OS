@@ -502,8 +502,8 @@ def test_updating_instructions_is_awaited() -> None:
 
     from marvi_agent import session
 
-    source = inspect.getsource(session)
-    call = "agent.update_instructions("
+    source = inspect.getsource(session.MarviVoiceAgent.refresh_context)
+    call = "self.update_instructions("
 
     assert call in source
     if inspect.iscoroutinefunction(Agent.update_instructions):
