@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 
@@ -136,6 +138,83 @@ async def test_low_resource_mode_is_a_hard_voice_boundary() -> None:
     assert dictation.status_code == 503
     assert speech_status.json()["enabled"] is False
     assert speech.released is True
+
+
+@pytest.mark.asyncio
+async def test_full_low_resource_stops_and_restores_the_smart_room_process(monkeypatch) -> None:
+    alive = True
+    events: list[str] = []
+
+    def stop() -> None:
+        nonlocal alive
+        alive = False
+        events.append("stop")
+
+    def start() -> None:
+        nonlocal alive
+        alive = True
+        events.append("start")
+
+    plugin = SimpleNamespace(
+        name="smart_room",
+        context=SimpleNamespace(
+            hooks={"on_gateway_stop": [stop], "on_gateway_start": [start]}
+        ),
+        module=SimpleNamespace(
+            process_manager=SimpleNamespace(
+                status=lambda: {"alive": alive, "pid": 4242 if alive else 0}
+            )
+        ),
+    )
+    monkeypatch.setattr("marvi_gateway.app.load_installed_plugins", lambda: [plugin])
+    app = create_app(version="0.1.0-test")
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://marvi.local") as client:
+        enabled = await client.post(
+            "/resources",
+            json={"low_resource": True, "shutdown_room": True},
+        )
+        runtime = (await client.get("/runtime")).json()
+        disabled = await client.post("/resources", json={"low_resource": False})
+
+    assert enabled.status_code == 200
+    assert enabled.json()["full_low_resource"] is True
+    assert runtime["components"]["room"] == {
+        "state": "offline",
+        "detail": "Smart Room closed by full low-resource mode",
+    }
+    assert runtime["components"]["vision"] == {
+        "state": "offline",
+        "detail": "Vision closed by full low-resource mode",
+    }
+    assert disabled.json()["full_low_resource"] is False
+    assert events == ["stop", "start"]
+
+
+@pytest.mark.asyncio
+async def test_full_low_resource_refuses_to_claim_a_live_room_process(monkeypatch) -> None:
+    plugin = SimpleNamespace(
+        name="smart_room",
+        context=SimpleNamespace(
+            hooks={"on_gateway_stop": [lambda: None], "on_gateway_start": [lambda: None]}
+        ),
+        module=SimpleNamespace(
+            process_manager=SimpleNamespace(status=lambda: {"alive": True, "pid": 4242})
+        ),
+    )
+    monkeypatch.setattr("marvi_gateway.app.load_installed_plugins", lambda: [plugin])
+    app = create_app(version="0.1.0-test")
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://marvi.local") as client:
+        response = await client.post(
+            "/resources",
+            json={"low_resource": True, "shutdown_room": True},
+        )
+        state = (await client.get("/resources")).json()
+
+    assert response.status_code == 503
+    assert "did not stop" in response.json()["detail"]
+    assert state["full_low_resource"] is False
 
 
 @pytest.mark.asyncio

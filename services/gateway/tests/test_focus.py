@@ -135,6 +135,23 @@ def test_nothing_happens_without_activitywatch() -> None:
     assert Focus(None).low_resource is False
 
 
+def test_full_low_resource_is_an_explicit_manual_tier() -> None:
+    focus = Focus(None)
+
+    assert focus.hold(True)["full_low_resource"] is False
+    assert focus.hold(True, shutdown_room=True)["full_low_resource"] is True
+    assert focus.hold(False, shutdown_room=True)["full_low_resource"] is False
+
+
+def test_automatic_low_resource_never_shuts_down_the_room(playing) -> None:
+    focus = Focus(_Windows(_w("FC26.exe"), _w("FC26.exe")))
+
+    _settle(focus)
+
+    assert focus.as_dict()["low_resource"] is True
+    assert focus.as_dict()["full_low_resource"] is False
+
+
 def test_she_says_something_a_person_would_say() -> None:
     event = {
         "source": "focus", "kind": "heavy_app_started", "trusted": True,
