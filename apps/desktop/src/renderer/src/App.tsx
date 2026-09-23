@@ -1,3 +1,4 @@
+import { ContextSettings } from './components/context-settings'
 import { Tr } from './store/locale'
 import { useStore } from '@nanostores/react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
@@ -278,7 +279,7 @@ const SETTINGS_APPEARANCE_PAGES = [
 const SETTINGS_GROUPS = [
   {
     gapBefore: false,
-    items: ['Providers', 'Models', 'Usage', 'Memory', 'Tools', 'Plugins']
+    items: ['Providers', 'Models', 'Usage', 'Memory', 'Context and Mind', 'Tools', 'Plugins']
   },
   {
     gapBefore: true,
@@ -335,6 +336,7 @@ const NAV_ICONS: Record<Page, AbstractIconName> = {
 }
 
 const SETTINGS_ICONS: Record<SettingsPage | 'Voice' | 'Appearance', AbstractIconName> = {
+  'Context and Mind': 'mind',
   Providers: 'providers',
   Models: 'models',
   Usage: 'activity',
@@ -5527,6 +5529,8 @@ function SettingsShell({
               <VoiceSynthesisPanel />
             ) : page === 'Wake word' ? (
               <WakeWordPanel />
+            ) : page === 'Context and Mind' ? (
+              <ContextSettings />
             ) : page === 'Memory' ? (
               <MemorySettingsPanel />
             ) : page === 'Tools' ? (

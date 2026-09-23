@@ -3744,7 +3744,9 @@ function startApp(): void {
           method: 'PUT',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ values }),
-          signal: AbortSignal.timeout(8_000)
+          signal: AbortSignal.timeout(
+            'MARVI_MIND_ENABLED' in values || 'MARVI_ANNOUNCE' in values ? 180_000 : 8_000
+          )
         })
         if (!response.ok) return null
         const page = normaliseProviderPage(await response.json())

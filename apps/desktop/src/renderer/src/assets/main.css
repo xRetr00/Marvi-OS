@@ -15366,3 +15366,24 @@ html[data-appearance='claude-code-dark'] .control-row {
   color: var(--ui-text-tertiary);
   font-size: 9px;
 }
+
+.context-settings-switches {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px 20px;
+  font-size: 11px;
+}
+.context-settings-switches label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.context-settings-switches .mode-switch {
+  min-width: 52px;
+  width: 52px;
+}
+.context-settings-switches .mode-switch:disabled {
+  opacity: 0.5;
+}
