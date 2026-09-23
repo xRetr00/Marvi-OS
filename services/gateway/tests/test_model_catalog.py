@@ -215,6 +215,29 @@ def test_lm_studio_uses_its_native_capability_catalog() -> None:
     assert card.context == 65536
 
 
+def test_llama_cpp_prefers_router_catalog() -> None:
+    profile = get("llamacpp")
+    seen: list[str] = []
+    (card,) = catalog.fetch(
+        profile,
+        http=responder(
+            {
+                "data": [
+                    {
+                        "id": "ggml-org/qwen3:Q4_K_M",
+                        "name": "Qwen 3 Q4_K_M",
+                        "architecture": {"input_modalities": ["text"]},
+                    }
+                ]
+            },
+            seen=seen,
+        ),
+    )
+
+    assert seen == ["http://127.0.0.1:8080/models"]
+    assert card.name == "Qwen 3 Q4_K_M"
+
+
 def test_an_unreachable_provider_returns_nothing_rather_than_raising() -> None:
     """This feeds a picker. A provider being down leaves the field typeable."""
     profile = get("openai")

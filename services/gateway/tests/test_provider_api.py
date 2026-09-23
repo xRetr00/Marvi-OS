@@ -149,6 +149,7 @@ def test_the_registry_reports_the_variables_it_reads(client) -> None:
     # llama.cpp both break that guess.
     assert rows["opencode-go"]["env"]["key"] == "OPENCODE_GO_API_KEY"
     assert rows["llamacpp"]["env"]["model"] == "MARVI_LOCAL_OPENAI_MODEL"
+    assert rows["llamacpp"]["label"] == "llama.cpp"
     assert rows["ollama"]["env"]["key"] == ""  # no credential to ask for
 
 

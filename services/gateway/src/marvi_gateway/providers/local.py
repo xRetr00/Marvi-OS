@@ -65,23 +65,47 @@ lm_studio = register(
     )
 )
 
-# llama.cpp's server and vLLM both expose an OpenAI-compatible endpoint, but on
-# no agreed port, so this one is configuration-only by design.
 llama_cpp = register(
     ProviderProfile(
         name="llamacpp",
-        aliases=("llama.cpp", "llama-cpp", "vllm", "local-openai"),
-        display_name="llama.cpp / vLLM",
-        description="Any OpenAI-compatible server you run yourself.",
+        aliases=("llama.cpp", "llama-cpp", "local-openai"),
+        display_name="llama.cpp",
+        description="Local GGUF models served by llama-server.",
         signup_url="https://github.com/ggml-org/llama.cpp",
         access_path="local",
         auth_type="none",
         api_mode="chat_completions",
         base_url_env="MARVI_LOCAL_OPENAI_URL",
-        default_base_url="",
+        default_base_url="http://127.0.0.1:8080/v1",
         default_model_env="MARVI_LOCAL_OPENAI_MODEL",
         default_model="",
         cache=CachePolicy(style="none"),
+        reasoning=ReasoningPolicy(
+            style="effort",
+            levels=("none", "minimal", "low", "medium", "high", "xhigh", "max"),
+        ),
+        supports_tools=True,
+        limits=_NO_LIMITS,
+        default_max_tokens=2048,
+    )
+)
+
+vllm = register(
+    ProviderProfile(
+        name="vllm",
+        aliases=("v-llm",),
+        display_name="vLLM",
+        description="Local models served by vLLM.",
+        signup_url="https://github.com/vllm-project/vllm",
+        access_path="local",
+        auth_type="none",
+        api_mode="chat_completions",
+        base_url_env="MARVI_VLLM_URL",
+        default_base_url="http://127.0.0.1:8000/v1",
+        default_model_env="MARVI_VLLM_MODEL",
+        default_model="",
+        cache=CachePolicy(style="none"),
+        reasoning=ReasoningPolicy(style="effort", levels=("none", "low", "medium", "high")),
         limits=_NO_LIMITS,
         default_max_tokens=2048,
     )

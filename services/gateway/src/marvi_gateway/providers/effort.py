@@ -149,6 +149,11 @@ def apply(
             body["reasoning_effort"] = transport
         return
 
+    if profile.name == "llamacpp":
+        body["reasoning_effort"] = transport
+        body["reasoning_format"] = "deepseek" if not off else "none"
+        return
+
     if profile.api_mode == "responses":
         body["reasoning"] = {"effort": transport}
         return

@@ -3077,6 +3077,7 @@ function ProviderCard({
   const [open, setOpen] = useState(false)
   const [secret, setSecret] = useState('')
   const [model, setModel] = useState(provider.models.main)
+  const [url, setUrl] = useState(provider.baseUrl)
   const [acknowledged, setAcknowledged] = useState(provider.configured)
   const [busy, setBusy] = useState(false)
   const [signIn, setSignIn] = useState('')
@@ -3263,6 +3264,15 @@ function ProviderCard({
             </small>
           )}
 
+          {provider.accessPath === 'local' ? (
+            <input
+              type="url"
+              placeholder={provider.env.url || 'Server URL'}
+              value={url}
+              onChange={(event) => setUrl(event.target.value)}
+            />
+          ) : null}
+
           <input
             type="text"
             placeholder={t('Model')}
@@ -3274,10 +3284,20 @@ function ProviderCard({
             <button
               className="phase"
               type="button"
-              disabled={busy || blocked || (needsKey && !secret && model === provider.models.main)}
+              disabled={
+                busy ||
+                blocked ||
+                (needsKey && !secret && model === provider.models.main) ||
+                (provider.accessPath === 'local' &&
+                  url === provider.baseUrl &&
+                  model === provider.models.main)
+              }
               onClick={() =>
                 void save({
                   ...(secret ? { [keyEnv]: secret } : {}),
+                  ...(provider.accessPath === 'local' && provider.env.url
+                    ? { [provider.env.url]: url }
+                    : {}),
                   ...(model !== provider.models.main ? { [modelEnv]: model } : {})
                 })
               }

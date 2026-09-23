@@ -135,14 +135,17 @@ def _card(entry: dict[str, Any], profile: ProviderProfile) -> ModelCard | None:
     )
 
 
-def _models_url(profile: ProviderProfile) -> str:
+def _models_urls(profile: ProviderProfile) -> tuple[str, ...]:
     """Use richer local catalog endpoints when the server publishes them."""
     base = profile.base_url()
     if profile.name == "lmstudio":
-        return f"{base.removesuffix('/v1')}/api/v1/models"
+        return (f"{base.removesuffix('/v1')}/api/v1/models",)
     if profile.name == "ollama":
-        return f"{base.removesuffix('/v1')}/api/tags"
-    return f"{base}{profile.models_path}"
+        return (f"{base.removesuffix('/v1')}/api/tags",)
+    if profile.name == "llamacpp":
+        root = base.removesuffix("/v1")
+        return (f"{root}/models", f"{base}{profile.models_path}")
+    return (f"{base}{profile.models_path}",)
 
 
 def fetch(profile: ProviderProfile, http: Any = None) -> list[ModelCard]:
@@ -161,9 +164,15 @@ def fetch(profile: ProviderProfile, http: Any = None) -> list[ModelCard]:
 
     client = http or httpx.Client(timeout=LIST_TIMEOUT)
     try:
-        response = client.get(_models_url(profile), headers=profile.headers())
-        response.raise_for_status()
-        payload = response.json()
+        payload = None
+        urls = _models_urls(profile)
+        for url in urls:
+            response = client.get(url, headers=profile.headers())
+            if response.status_code == 404 and url != urls[-1]:
+                continue
+            response.raise_for_status()
+            payload = response.json()
+            break
     except Exception as exc:
         log.warning("could not list models for %s: %s", profile.name, exc)
         return []

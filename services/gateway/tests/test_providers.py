@@ -42,7 +42,7 @@ def profile(**changes) -> ProviderProfile:
 def test_only_finished_providers_are_registered() -> None:
     names = {p.name for p in all_profiles()}
     assert names == {
-        "ollama", "lmstudio", "llamacpp",
+        "ollama", "lmstudio", "llamacpp", "vllm",
         "opencode-zen", "opencode-go",
         "openai", "openai-responses", "anthropic",
         "openrouter", "deepinfra", "deepseek",
@@ -64,7 +64,7 @@ def test_aliases_resolve() -> None:
     assert get("go").name == "opencode-go"
     assert get("zen").name == "opencode-zen"
     assert get("lm-studio").name == "lmstudio"
-    assert get("vllm").name == "llamacpp"
+    assert get("vllm").name == "vllm"
 
 
 def test_an_unknown_provider_is_refused() -> None:
@@ -113,7 +113,15 @@ def test_a_key_provider_is_unconfigured_without_one(monkeypatch) -> None:
 
 def test_a_local_provider_with_no_endpoint_is_unconfigured(monkeypatch) -> None:
     monkeypatch.delenv("MARVI_LOCAL_OPENAI_URL", raising=False)
+    assert get("llamacpp").base_url() == "http://127.0.0.1:8080/v1"
     assert get("llamacpp").configured() is False
+
+
+def test_llama_cpp_uses_its_native_reasoning_shape() -> None:
+    body = get("llamacpp").build_request(MESSAGES, model="qwen3", effort="high")
+
+    assert body["reasoning_effort"] == "high"
+    assert body["reasoning_format"] == "deepseek"
 
 
 def test_selection_prefers_a_connected_local_provider(monkeypatch) -> None:

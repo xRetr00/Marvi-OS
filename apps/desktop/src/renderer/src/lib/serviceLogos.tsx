@@ -29,7 +29,7 @@ export const SERVICE_LOGOS: Readonly<Record<string, ServiceLogoComponent>> = Obj
   deepinfra: DeepInfra,
   deepseek: DeepSeek,
   livekit: LiveKit,
-  llamacpp: Vllm,
+  vllm: Vllm,
   lmstudio: LmStudio,
   ollama: Ollama,
   openai: OpenAI,

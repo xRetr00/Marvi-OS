@@ -14,7 +14,8 @@ from the control center without a rebuild.
 | -------------------------- | -------- | ------------------- | ---------------- | ---------------------------------- |
 | Ollama                     | local    | none                | chat completions | **implemented**                    |
 | LM Studio                  | local    | none                | chat completions | **implemented**                    |
-| llama.cpp / vLLM           | local    | none                | chat completions | **implemented**                    |
+| llama.cpp                  | local    | none                | chat completions | **implemented**                    |
+| vLLM                       | local    | none                | chat completions | **implemented**                    |
 | OpenCode Zen               | api      | api key             | chat completions | **implemented**                    |
 | OpenCode Go                | plan     | api key             | chat completions | **implemented**                    |
 | OpenAI                     | api      | api key             | chat completions | **implemented**                    |
@@ -42,13 +43,26 @@ working with the network down, the only ones with no privacy question, and the
 only ones that cost nothing. That makes local the default choice when several
 providers are configured, and the right home for auxiliary work.
 
-|           | Ollama               | LM Studio              | llama.cpp / vLLM           |
-| --------- | -------------------- | ---------------------- | -------------------------- |
-| URL env   | `MARVI_OLLAMA_URL`   | `MARVI_LMSTUDIO_URL`   | `MARVI_LOCAL_OPENAI_URL`   |
-| default   | `localhost:11434/v1` | `localhost:1234/v1`    | none — must be set         |
-| model env | `MARVI_OLLAMA_MODEL` | `MARVI_LMSTUDIO_MODEL` | `MARVI_LOCAL_OPENAI_MODEL` |
+|           | Ollama               | LM Studio              | llama.cpp                    | vLLM                  |
+| --------- | -------------------- | ---------------------- | ---------------------------- | --------------------- |
+| URL env   | `MARVI_OLLAMA_URL`   | `MARVI_LMSTUDIO_URL`   | `MARVI_LOCAL_OPENAI_URL`     | `MARVI_VLLM_URL`      |
+| default   | `localhost:11434/v1` | `localhost:1234/v1`    | `127.0.0.1:8080/v1`          | `127.0.0.1:8000/v1`  |
+| model env | `MARVI_OLLAMA_MODEL`  | `MARVI_LMSTUDIO_MODEL` | `MARVI_LOCAL_OPENAI_MODEL`   | `MARVI_VLLM_MODEL`    |
 
 **Needs:** the server running. Nothing else.
+
+llama.cpp uses the server's richer router catalog at `GET /models` first and
+falls back to the OpenAI-compatible `GET /v1/models` endpoint for a single
+loaded model. The model picker uses the server-provided identifier and name,
+so a GGUF path or `--alias` value is not guessed by Marvi. The server's native
+reasoning controls are sent as `reasoning_effort` and `reasoning_format`.
+
+Model downloading remains owned by llama.cpp. Marvi does not download GGUF
+files itself; router-mode servers can fetch Hugging Face models through their
+own `POST /models` API. This keeps credentials, cache location, progress, and
+deletion under the server's documented policy. See the upstream
+[server API documentation](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md)
+for `--hf-repo`, `/models`, `/models/sse`, `/models/load`, and `/models/unload`.
 
 **Caching:** none requested. These servers keep their own KV cache across
 requests sharing a prefix, but there is nothing to ask for in the request. A

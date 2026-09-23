@@ -1,5 +1,16 @@
 # Implementation Log
 
+## 2026-09-23 — llama.cpp provider support
+
+- Split llama.cpp from vLLM in the provider registry so labels, URLs, model
+  environment variables, and connections describe the actual server.
+- Added the documented `127.0.0.1:8080/v1` default, an editable local URL in
+  Providers, router-aware model catalog fetching with OpenAI fallback, and
+  llama.cpp native reasoning fields.
+- Confirmed the upstream server contract against its current documentation:
+  `/health`, `/v1/models`, router `/models`, native reasoning controls, and
+  Hugging Face downloads. Marvi lists models but does not own GGUF downloads.
+
 ## 2026-09-23 — Independent interface direction
 
 - Added a persisted Follow language/RTL/LTR preference beside interface
