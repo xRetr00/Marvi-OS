@@ -17,6 +17,24 @@ from marvi_gateway.providers import ProviderClient
 from marvi_gateway.tools import ToolRegistry, ToolSpec
 
 
+def test_deferred_schemas_keep_tools_callable_but_remove_argument_structure() -> None:
+    registry = ToolRegistry()
+    registry.register(
+        ToolSpec(
+            name="rare_tool",
+            description="Rare tool. It does a thing.",
+            sensitive=False,
+            arguments={"long_argument": str},
+            handler=lambda long_argument: long_argument,
+        )
+    )
+    full = schemas_from_registry(registry)
+    compact = schemas_from_registry(registry, deferred=True)
+
+    assert full[0]["parameters"]["required"] == ["long_argument"]
+    assert compact[0]["parameters"] == {"type": "object", "properties": {}}
+
+
 @pytest.fixture(autouse=True)
 def key(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "k")

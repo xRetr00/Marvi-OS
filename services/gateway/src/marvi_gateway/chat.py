@@ -88,32 +88,10 @@ RECALL_CHARS = 1200
 #: Twenty-four, matching the voice agent's `TOOL_STEPS`, so the two surfaces
 #: can finish the same task. Still bounded: a model that loops is stopped.
 MAX_TOOL_ROUNDS = 24
-#: How long a written reply may be when the model's context is not known.
-MAX_REPLY_TOKENS = 1024
-
-
 def reply_tokens(provider: str, model: str) -> int:
-    """How long a reply may be, given what the model can hold.
-
-    Fixed at 1024 before, while voice already sized its replies from the
-    context window the provider reports with each model -- so the two surfaces
-    disagreed about the same model. A small model got asked for more than it
-    could give back, and a large one was capped for no reason.
-
-    A twentieth of the window, floored at the old default so nothing gets
-    shorter than it was, and capped where a chat reply stops being one.
-    """
-    if not provider or not model:
-        return MAX_REPLY_TOKENS
-    try:
-        from .providers.catalog import known_context
-
-        context = known_context(provider, model)
-    except Exception:  # pragma: no cover - a missing catalog is not a failure
-        return MAX_REPLY_TOKENS
-    if context <= 0:
-        return MAX_REPLY_TOKENS
-    return max(MAX_REPLY_TOKENS, min(context // 20, 4096))
+    """Compatibility value for the context meter: chat has no reply reserve."""
+    del provider, model
+    return 0
 
 
 def situation() -> str:
@@ -1957,7 +1935,8 @@ class Chat:
                         preferred=provider or None,
                         model=model or None,
                         effort=effort or None,
-                        max_tokens=reply_tokens(provider or "", model or ""),
+                        max_tokens=None,
+                        job="chat",
                         tools=None if final_round else (schemas or None),
                     )
                     for event in stream:
@@ -2314,7 +2293,8 @@ class Chat:
                         preferred=provider or None,
                         model=model or None,
                         effort=effort or None,
-                        max_tokens=reply_tokens(provider or "", model or ""),
+                        max_tokens=None,
+                        job="chat",
                         tools=None if final_round else (schemas or None),
                     )
                     # Known only now: fallback decides which provider answered.
@@ -2428,7 +2408,7 @@ class Chat:
         )
 
 
-def schemas_from_registry(registry: Any) -> list[dict[str, Any]]:
+def schemas_from_registry(registry: Any, *, deferred: bool = False) -> list[dict[str, Any]]:
     """Describe the router's tools in the neutral shape `build_request` takes."""
     # `dict` and `list` were missing, and the fallback is `"string"` -- so six
     # tools published a schema that contradicted their own validator.
@@ -2449,14 +2429,24 @@ def schemas_from_registry(registry: Any) -> list[dict[str, Any]]:
         dict: "object",
         list: "array",
     }
+    core: set[str] = set()
+    if deferred:
+        from .toolsearch import core_tools
+
+        core = core_tools()
     described: list[dict[str, Any]] = []
     for spec in registry:
         if getattr(spec, "schema", None):
+            description = spec.description
+            parameters = spec.schema
+            if deferred and spec.name not in core:
+                description = re.split(r"(?<=[.!?])\s", description.strip())[0]
+                parameters = {"type": "object", "properties": {}}
             described.append(
                 {
                     "name": spec.name,
-                    "description": spec.description,
-                    "parameters": spec.schema,
+                    "description": description,
+                    "parameters": parameters,
                 }
             )
             continue
@@ -2475,20 +2465,25 @@ def schemas_from_registry(registry: Any) -> list[dict[str, Any]]:
             if describes.get(key):
                 field["description"] = describes[key]
             properties[key] = field
+        description = (
+            f"{spec.description}"
+            + (" Requires the user's confirmation." if spec.sensitive else "")
+        )
+        parameters = {
+            "type": "object",
+            "properties": properties,
+            "required": sorted(spec.arguments),
+        }
+        if deferred and spec.name not in core:
+            description = re.split(r"(?<=[.!?])\s", description.strip())[0]
+            parameters = {"type": "object", "properties": {}}
         described.append(
             {
                 "name": spec.name,
                 # Telling the model which actions will pause for confirmation
                 # produces better phrasing than letting it discover it.
-                "description": (
-                    f"{spec.description}"
-                    + (" Requires the user's confirmation." if spec.sensitive else "")
-                ),
-                "parameters": {
-                    "type": "object",
-                    "properties": properties,
-                    "required": sorted(spec.arguments),
-                },
+                "description": description,
+                "parameters": parameters,
             }
         )
     return described

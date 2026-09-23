@@ -2465,7 +2465,10 @@ def create_app(
 
     if chat is not None:
         chat.dispatch = dispatch_for_chat
-        chat.tool_schemas = lambda: schemas_from_registry(tool_registry)
+        chat.tool_schemas = lambda: schemas_from_registry(
+            tool_registry,
+            deferred=os.environ.get("MARVI_DEFER_TOOLS", "").strip().lower() == "lazy",
+        )
     if scheduler is not None:
         # Cron gets an isolated, transcript-free agent loop, but it calls the
         # exact provider and audited tool paths used by Chat and Voice.

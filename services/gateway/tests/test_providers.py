@@ -175,6 +175,12 @@ def test_chat_completions_shape() -> None:
     assert "stream" not in body
 
 
+def test_chat_job_does_not_inherit_a_default_output_cap() -> None:
+    body = get("llamacpp").build_request(MESSAGES, model="qwen3", job="chat")
+
+    assert "max_tokens" not in body
+
+
 def test_streaming_asks_for_usage_too() -> None:
     body = profile().build_request(MESSAGES, stream=True)
 

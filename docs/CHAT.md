@@ -37,7 +37,12 @@ ephemeral input state.
   the pinned model catalog's context window. Unknown values display as unknown
   rather than estimates. Its breakdown segments prompt, cached input, reply reserve, and
   available capacity, then separately exposes message, file, source, and route
-  facts without pretending those counts are tokens.
+  facts without pretending those counts are tokens. Chat does not impose a
+  fixed reply-token cap: OpenAI-compatible local providers may stop at EOS or
+  their own context limit, while voice and auxiliary budgets remain separate.
+  Preferences can enable Deferred Marvi tools, which keeps every tool callable
+  while shortening non-core schemas to reduce the prompt prefix and improve
+  local KV-cache reuse.
 
 Handed-off work is reported back. When a `delegate` or `delegate_to_coder` job
 this thread started ends (per the `/agents` feed) and no turn is running, the

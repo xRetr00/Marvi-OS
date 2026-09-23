@@ -6859,6 +6859,16 @@ function PreferencesPanel({
 }): React.JSX.Element {
   const interfaceLocale = useStore($interfaceLocale)
   const interfaceDirection = useStore($interfaceDirection)
+  const [deferredTools, setDeferredTools] = useState(false)
+  useEffect(() => {
+    let gone = false
+    void window.marvi?.getProviders().then((page) => {
+      if (!gone) setDeferredTools(page?.settings?.MARVI_DEFER_TOOLS === 'lazy')
+    })
+    return () => {
+      gone = true
+    }
+  }, [])
   const setYolo = (enabled: boolean): void => {
     void window.marvi?.setYolo(enabled).then(applyRuntimeState)
   }
@@ -6963,6 +6973,33 @@ function PreferencesPanel({
             interfaceLocale
           )}
           title={t('Action approval')}
+        />
+      </ControlSection>
+
+      <ControlSection icon={Gauge} title={t('Model context', interfaceLocale)}>
+        <ControlRow
+          action={
+            <button
+              aria-checked={deferredTools}
+              className={deferredTools ? 'mode-switch active' : 'mode-switch'}
+              onClick={() => {
+                const next = !deferredTools
+                setDeferredTools(next)
+                void window.marvi?.setProviderSettings({
+                  MARVI_DEFER_TOOLS: next ? 'lazy' : ''
+                })
+              }}
+              role="switch"
+              type="button"
+            >
+              {t(deferredTools ? 'On · compact tools' : 'Off · full tools', interfaceLocale)}
+            </button>
+          }
+          description={t(
+            'Keeps every Marvi tool callable while publishing shorter schemas for less-used tools. This reduces the prompt prefix and helps llama.cpp reuse its KV cache. Voice and chat use the same setting.',
+            interfaceLocale
+          )}
+          title={t('Deferred Marvi tools', interfaceLocale)}
         />
       </ControlSection>
 

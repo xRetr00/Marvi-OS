@@ -1,5 +1,20 @@
 # Implementation Log
 
+## 2026-09-23 — Unbounded chat output and compact tool schemas
+
+- Chat no longer passes the provider's voice/auxiliary output reserve; for
+  OpenAI-compatible local providers, llama.cpp can stop at EOS or its own
+  context limit instead of being cut off at 1024 tokens. Voice and auxiliary
+  jobs keep their explicit budgets.
+- Added Preferences → Model context → Deferred Marvi tools. It persists
+  `MARVI_DEFER_TOOLS=lazy`, keeps every tool callable, and publishes a short
+  description/open argument object for non-core tools to reduce prompt-prefix
+  churn and improve llama.cpp KV-cache reuse. It is off by default.
+- Today's logs showed 107 tool schemas and 15k–20k input tokens on chat turns;
+  llama.cpp then evicted 0.4–0.75 GiB prompt-cache entries and reprocessed the
+  prompt. The compact mode targets that request-shape pressure; cache eviction
+  remains dependent on llama-server's configured cache size.
+
 ## 2026-09-23 — llama.cpp provider support
 
 - Split llama.cpp from vLLM in the provider registry so labels, URLs, model

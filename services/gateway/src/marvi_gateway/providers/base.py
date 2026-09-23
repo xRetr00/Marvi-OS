@@ -365,7 +365,12 @@ class ProviderProfile:
         the schema goes, which is the same reason `build_request` exists at all.
         """
         chosen = model or self.model_for()
-        limit = max_tokens or self.default_max_tokens
+        # Chat owns its stopping policy (EOS / provider context window). Do
+        # not silently reintroduce the provider's auxiliary default here: the
+        # old 1024/2048 reserve was the reason llama-server stopped exactly at
+        # 1024 output tokens. Other jobs retain their explicit/default budget.
+        unbounded_chat = job == "chat" and max_tokens is None
+        limit = None if unbounded_chat else (max_tokens or self.default_max_tokens)
         wants_stream = stream and self.supports_streaming
         # Voice and auxiliary work never reason, for two different reasons.
         #
@@ -399,6 +404,9 @@ class ProviderProfile:
                 if cache_prefix and self.cache.style == "explicit_breakpoints":
                     block["cache_control"] = {"type": "ephemeral"}
                 body["system"] = [block]
+            # Anthropic requires an output limit on the wire. The chat surface
+            # is unbounded for OpenAI-compatible local providers; keep the
+            # protocol-required fallback for this one API shape.
             body["max_tokens"] = limit or 1024
             if wants_stream:
                 body["stream"] = True

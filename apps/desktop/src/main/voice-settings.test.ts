@@ -16,6 +16,10 @@ describe('voice setting lifecycle', () => {
     expect(requiresVoiceWorkerRestart({ MARVI_TTS_ENGINE: 'kokoro' })).toBe(true)
   })
 
+  it('restarts so the voice worker receives deferred tool settings', () => {
+    expect(requiresVoiceWorkerRestart({ MARVI_DEFER_TOOLS: 'lazy' })).toBe(true)
+  })
+
   it('leaves the worker alone for unrelated provider settings', () => {
     expect(requiresVoiceWorkerRestart({ MARVI_OPENROUTER_MODEL: 'model' })).toBe(false)
     expect(requiresVoiceWorkerRestart(null)).toBe(false)
