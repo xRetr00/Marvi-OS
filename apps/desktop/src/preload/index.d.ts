@@ -155,7 +155,7 @@ export interface MarviDesktopApi {
   reversePlace: (latitude: number, longitude: number) => Promise<{ label: string } | null>
   getWeather: () => Promise<WeatherState | null>
   openLocationSettings: () => Promise<void>
-  holdResources: (on: boolean) => Promise<ResourceState | null>
+  holdResources: (on: boolean, shutdownRoom?: boolean) => Promise<ResourceState | null>
   openExternal: (url: string) => Promise<boolean>
   getPersonas: () => Promise<PersonaChoice | null>
   choosePersona: (name: string) => Promise<PersonaChoice | null>

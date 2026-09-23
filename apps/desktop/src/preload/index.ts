@@ -226,8 +226,8 @@ const marvi = {
     ipcRenderer.invoke('marvi:room-command', tool, args),
   getInitiative: (): Promise<InitiativeStatus | null> => ipcRenderer.invoke('marvi:get-initiative'),
   getResources: (): Promise<ResourceState | null> => ipcRenderer.invoke('marvi:get-resources'),
-  holdResources: (on: boolean): Promise<ResourceState | null> =>
-    ipcRenderer.invoke('marvi:hold-resources', on),
+  holdResources: (on: boolean, shutdownRoom = false): Promise<ResourceState | null> =>
+    ipcRenderer.invoke('marvi:hold-resources', on, shutdownRoom),
   openExternal: (url: string): Promise<boolean> => ipcRenderer.invoke('marvi:open-external', url),
   getPersonas: (): Promise<PersonaChoice | null> => ipcRenderer.invoke('marvi:get-personas'),
   choosePersona: (name: string): Promise<PersonaChoice | null> =>

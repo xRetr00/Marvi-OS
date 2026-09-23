@@ -2089,12 +2089,15 @@ function startApp(): void {
       }
     })
 
-    ipcMain.handle('marvi:hold-resources', async (_event, on: boolean) => {
+    ipcMain.handle('marvi:hold-resources', async (_event, on: boolean, shutdownRoom = false) => {
       try {
         const response = await fetch(`${gateway()}/resources`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ low_resource: Boolean(on) }),
+          body: JSON.stringify({
+            low_resource: Boolean(on),
+            shutdown_room: Boolean(on && shutdownRoom)
+          }),
           signal: AbortSignal.timeout(5_000)
         })
         if (!response.ok) return null
