@@ -587,7 +587,11 @@ def plan(components: list[Component], repo_root: Path | None = None) -> dict[str
         state = state_of(component, repo_root) if repo_root is not None else component.status()
         return bool(state["installed"])
 
-    missing = [component for component in components if not present(component)]
+    # The checks can touch model manifests and virtual environments. Keeping
+    # two list comprehensions here made the interactive setup screen perform
+    # the full scan twice while its loading indicator had no useful detail.
+    inspected = [(component, present(component)) for component in components]
+    missing = [component for component, installed in inspected if not installed]
     return {
         "install": [
             {
@@ -600,7 +604,7 @@ def plan(components: list[Component], repo_root: Path | None = None) -> dict[str
             for c in missing
         ],
         "already_installed": [
-            c.name for c in components if present(c)
+            c.name for c, installed in inspected if installed
         ],
         "bytes_total": sum(c.bytes_total for c in missing),
     }

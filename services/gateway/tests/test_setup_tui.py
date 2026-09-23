@@ -250,3 +250,26 @@ def test_component_selection_only_installs_selected_entries(monkeypatch) -> None
     tui._install_components(Console(file=StringIO()), components, current, install, object())
 
     assert installed == ["second"]
+
+
+def test_setup_plan_inspects_each_component_once(monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    from marvi_gateway.setup import installer
+
+    components = [
+        SimpleNamespace(name="one", title="One", why="", bytes_total=1, needed_for=()),
+        SimpleNamespace(name="two", title="Two", why="", bytes_total=2, needed_for=()),
+    ]
+    calls: list[str] = []
+
+    def state_of(component, _root):
+        calls.append(component.name)
+        return {"installed": component.name == "one"}
+
+    monkeypatch.setattr(installer, "state_of", state_of)
+    result = installer.plan(components, object())
+
+    assert calls == ["one", "two"]
+    assert result["already_installed"] == ["one"]
+    assert [entry["name"] for entry in result["install"]] == ["two"]
