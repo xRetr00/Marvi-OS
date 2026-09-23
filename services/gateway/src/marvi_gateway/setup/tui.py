@@ -271,6 +271,7 @@ def run(
             current = plan(
                 components,
                 progress=lambda title: report(f"Checking {title} - no downloads"),
+                deep=False,
             )
         missing = current["install"]
         console.print(_components_table(components, missing))
@@ -397,6 +398,10 @@ def _edit_capabilities(console: Any) -> None:
     from rich.prompt import Confirm, Prompt
 
     console.print(f"\n{terminal_ui.styled('Tools and keys', terminal_ui.CRAIL, bold=True)}")
+    console.print(terminal_ui.styled(
+        "Choose Web search and reading to edit the page reader or Jina Reader API key.",
+        terminal_ui.CLOUDY,
+    ))
     for index, capability in enumerate(CAPABILITIES, 1):
         mark = terminal_ui.styled("READY", terminal_ui.SUCCESS, bold=True) if _ready(capability) else terminal_ui.styled("NEEDS SETUP", terminal_ui.WARNING, bold=True)
         console.print(f"  {terminal_ui.styled(str(index), terminal_ui.CRAIL, bold=True)} {capability.title}  {mark}")

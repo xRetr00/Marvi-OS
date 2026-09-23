@@ -581,6 +581,7 @@ def plan(
     components: list[Component],
     repo_root: Path | None = None,
     progress: Callable[[str], None] | None = None,
+    deep: bool = True,
 ) -> dict[str, Any]:
     """What a setup run would do, before it does it.
 
@@ -588,7 +589,14 @@ def plan(
     saying so is a bad first run.
     """
     def present(component: Component) -> bool:
-        state = state_of(component, repo_root) if repo_root is not None else component.status()
+        if repo_root is not None:
+            # Command components need their real probe even during a shallow
+            # screen refresh; file/model components can use presence and size
+            # without hashing gigabytes of already-downloaded weights.
+            checked_deep = deep or component.kind == "command"
+            state = state_of(component, repo_root, deep=checked_deep)
+        else:
+            state = component.status(deep=deep)
         return bool(state["installed"])
 
     # The checks can touch model manifests and virtual environments. Keeping

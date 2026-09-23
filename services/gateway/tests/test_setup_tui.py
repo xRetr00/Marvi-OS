@@ -264,7 +264,7 @@ def test_setup_plan_inspects_each_component_once(monkeypatch) -> None:
     calls: list[str] = []
     progress: list[str] = []
 
-    def state_of(component, _root):
+    def state_of(component, _root, deep=True):
         calls.append(component.name)
         return {"installed": component.name == "one"}
 
@@ -275,3 +275,23 @@ def test_setup_plan_inspects_each_component_once(monkeypatch) -> None:
     assert progress == ["One", "Two"]
     assert result["already_installed"] == ["one"]
     assert [entry["name"] for entry in result["install"]] == ["two"]
+
+
+def test_setup_screen_can_plan_without_hashing_files(monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    from marvi_gateway.setup import installer
+
+    component = SimpleNamespace(
+        name="model", title="Model", why="", bytes_total=1, needed_for=(), kind="file"
+    )
+    calls: list[bool] = []
+
+    def state_of(_component, _root, deep=True):
+        calls.append(deep)
+        return {"installed": True}
+
+    monkeypatch.setattr(installer, "state_of", state_of)
+    installer.plan([component], object(), deep=False)
+
+    assert calls == [False]
