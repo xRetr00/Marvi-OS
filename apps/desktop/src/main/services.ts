@@ -334,12 +334,15 @@ export class Service {
    * holding the port and the checkout. That orphan then breaks the next update
    * and fights the next launch for 8765.
    */
-  stop(): void {
+  stop(detail = 'stopped'): void {
     this.stopping = true
     if (this.timer) clearTimeout(this.timer)
     this.timer = null
     const child = this.child
     this.child = null
+    this.state = 'stopped'
+    this.detail = detail
+    this.onChange()
     if (!child) return
     void stopTree(child).catch(() => killTree(child.pid, true))
   }
@@ -382,6 +385,20 @@ export class ServiceSupervisor {
 
   stopAll(): void {
     for (const service of this.services.values()) service.stop()
+  }
+
+  start(name: string): boolean {
+    const service = this.services.get(name)
+    if (!service) return false
+    if (!service.alive()) service.start()
+    return true
+  }
+
+  stop(name: string, detail = 'stopped'): boolean {
+    const service = this.services.get(name)
+    if (!service) return false
+    service.stop(detail)
+    return true
   }
 
   /** Immediate, for quit: Electron will not wait for a promise there. */

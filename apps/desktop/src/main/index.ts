@@ -130,6 +130,8 @@ let tray: Tray | null = null
 let gatewayPoll: NodeJS.Timeout | null = null
 let wakeWatchdog: NodeJS.Timeout | null = null
 let wakeWatchdogBusy = false
+let lowResourceMode = false
+let resumeWakeAfterLowResource = false
 let petCursorPoll: NodeJS.Timeout | null = null
 let supervisor: ServiceSupervisor | null = null
 let serviceReports: ServiceReport[] = []
@@ -950,7 +952,7 @@ function wakeHostPath(): string {
  * here has to tell it, and an update that moves it re-registers on next launch.
  */
 async function wakeAutostart(
-  action: 'enable' | 'disable' | 'status' | 'ensure',
+  action: 'enable' | 'disable' | 'status' | 'ensure' | 'suspend',
   device = ''
 ): Promise<{ autostart: boolean; running: boolean }> {
   const fallback = { autostart: false, running: false }
@@ -964,6 +966,14 @@ async function wakeAutostart(
       })
       const on = stdout.trim() === 'on'
       return { autostart: on, running: on }
+    }
+    if (action === 'suspend') {
+      const { stdout } = await execFileAsync(listener, ['--autostart', 'status'], {
+        windowsHide: true
+      })
+      const registered = stdout.trim() === 'on'
+      await execFileAsync(listener, ['--stop'], { windowsHide: true })
+      return { autostart: registered, running: false }
     }
     if (action === 'ensure') {
       const { stdout } = await execFileAsync(listener, ['--autostart', 'status'], {
@@ -1041,7 +1051,14 @@ function wakeListenerFresh(now = Date.now()): boolean {
 }
 
 async function reconcileWakeListener(): Promise<void> {
-  if (isQuitting || wakeWatchdogBusy || !wakeAutoRestartEnabled() || wakeListenerFresh()) return
+  if (
+    isQuitting ||
+    lowResourceMode ||
+    wakeWatchdogBusy ||
+    !wakeAutoRestartEnabled() ||
+    wakeListenerFresh()
+  )
+    return
   wakeWatchdogBusy = true
   try {
     const registration = await wakeAutostart('status')
@@ -1054,6 +1071,24 @@ async function reconcileWakeListener(): Promise<void> {
 function startWakeWatchdog(): void {
   void reconcileWakeListener()
   wakeWatchdog = setInterval(() => void reconcileWakeListener(), 10_000)
+}
+
+async function reconcileLowResourceServices(on: boolean): Promise<void> {
+  if (lowResourceMode === on) return
+  lowResourceMode = on
+  if (on) {
+    supervisor?.stop('agent', 'disabled by low-resource mode')
+    supervisor?.stop('livekit', 'disabled by low-resource mode')
+    const wake = await wakeAutostart('suspend')
+    resumeWakeAfterLowResource = wake.autostart
+    desktop.info('low-resource mode disabled LiveKit, voice worker and wake listener')
+    return
+  }
+  supervisor?.start('livekit')
+  supervisor?.start('agent')
+  if (resumeWakeAfterLowResource) await wakeAutostart('ensure')
+  resumeWakeAfterLowResource = false
+  desktop.info('low-resource mode ended; restoring voice services')
 }
 
 type RendererSurface = 'main' | 'island'
@@ -1410,6 +1445,7 @@ async function refreshGatewayRuntime(): Promise<RuntimeStatus> {
   try {
     const gateway = await gatewayRequest('/runtime')
     missedPolls = 0
+    void reconcileLowResourceServices(gateway.resources.low_resource)
     // The Gateway owns the assistant state: the agent worker reports its phase
     // through it, so it is the only view that knows whether Marvi is listening.
     //
@@ -1668,6 +1704,7 @@ function startApp(): void {
     }))
     ipcMain.handle('marvi:get-runtime', () => runtimeStatus)
     ipcMain.handle('marvi:get-voice-session', async () => {
+      if (lowResourceMode) throw new Error('Voice not working in low-resource mode')
       const response = await fetch(`${gateway()}/livekit/session`, {
         method: 'POST',
         signal: AbortSignal.timeout(2_000)
@@ -2059,7 +2096,9 @@ function startApp(): void {
           signal: AbortSignal.timeout(5_000)
         })
         if (!response.ok) return null
-        return await response.json()
+        const state = (await response.json()) as { low_resource?: boolean }
+        void reconcileLowResourceServices(Boolean(state.low_resource))
+        return state
       } catch {
         return null
       }

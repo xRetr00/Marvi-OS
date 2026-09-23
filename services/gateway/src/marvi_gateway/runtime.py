@@ -180,6 +180,16 @@ class ModelSummary(BaseModel):
     tts: str = ""
 
 
+class ResourceMode(BaseModel):
+    """The machine-wide low-resource gate exposed with every runtime snapshot."""
+
+    low_resource: bool = False
+    because: str = ""
+    app: str = ""
+    by_hand: bool = False
+    automatic: bool = False
+
+
 class RuntimeStatus(BaseModel):
     product: str = "Marvi OS"
     version: str
@@ -201,6 +211,7 @@ class RuntimeStatus(BaseModel):
     components: dict[str, ComponentStatus]
     assistant: AssistantState
     model: ModelSummary = ModelSummary()
+    resources: ResourceMode = ResourceMode()
 
 
 class ModeUpdate(BaseModel):

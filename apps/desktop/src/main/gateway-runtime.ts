@@ -49,6 +49,7 @@ export function normalizeRuntimeStatus(value: unknown): RuntimeStatus | null {
   }
 
   const model = isRecord(value.model) ? value.model : {}
+  const resources = isRecord(value.resources) ? value.resources : {}
   const components: RuntimeStatus['components'] = {}
   for (const [name, component] of Object.entries(value.components)) {
     if (
@@ -181,6 +182,13 @@ export function normalizeRuntimeStatus(value: unknown): RuntimeStatus | null {
       llm: typeof model.llm === 'string' ? model.llm : '',
       stt: typeof model.stt === 'string' ? model.stt : '',
       tts: typeof model.tts === 'string' ? model.tts : ''
+    },
+    resources: {
+      low_resource: resources.low_resource === true,
+      because: typeof resources.because === 'string' ? resources.because : '',
+      app: typeof resources.app === 'string' ? resources.app : '',
+      by_hand: resources.by_hand === true,
+      automatic: resources.automatic === true
     }
   }
 }

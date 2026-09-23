@@ -1186,6 +1186,7 @@ export interface RuntimeStatus {
   components: Record<string, ComponentStatus>
   assistant: AssistantState
   model: ModelSummary
+  resources: ResourceState
 }
 
 export const DEFAULT_ASSISTANT_STATE: AssistantState = {
@@ -1220,6 +1221,7 @@ export const OFFLINE_RUNTIME: RuntimeStatus = {
   // here made an unreachable Marvi say "Say Marvi" and report VOICE READY in
   // the status bar. An assistant we cannot reach is in its error phase.
   model: { llm: '', stt: '', tts: '' },
+  resources: { low_resource: false, because: '', app: '', by_hand: false, automatic: false },
   assistant: {
     ...DEFAULT_ASSISTANT_STATE,
     phase: 'error',

@@ -534,3 +534,16 @@ class Announcer:
 
     def close(self) -> None:
         self.stop()
+
+    def release(self) -> None:
+        """Stop playback and drop the warm CPU model for low-resource mode."""
+        self.stop()
+        with self._serial:
+            self._model = None
+            self._voice_state = None
+        # PocketTTS/torch can retain large cyclic graphs after the last direct
+        # reference is gone. Low-resource mode is an explicit resource
+        # boundary, so collection belongs here rather than at some later turn.
+        import gc
+
+        gc.collect()

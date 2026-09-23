@@ -113,6 +113,7 @@ from .runtime import (
     ConfirmationDecision,
     ModelSummary,
     ModeUpdate,
+    ResourceMode,
     RuntimeStatus,
     RuntimeStore,
     TokenRejectedError,
@@ -1165,6 +1166,54 @@ def create_app(
     # Explicit Read Aloud is available even when unprompted announcements are
     # disabled. MARVI_ANNOUNCE governs initiative, not a button the user pressed.
     one_shot = announcer_service or Announcer()
+    resource_mode_lock = threading.Lock()
+    resource_mode_active = False
+
+    def resource_state() -> dict[str, Any]:
+        if focus is None:
+            return {
+                "low_resource": False,
+                "because": "",
+                "app": "",
+                "by_hand": False,
+                "automatic": False,
+            }
+        return focus.as_dict()
+
+    def sync_resource_mode(state: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Apply the voice resource boundary once per low-resource transition."""
+        nonlocal resource_mode_active
+        current = state or resource_state()
+        low = bool(current.get("low_resource"))
+        with resource_mode_lock:
+            changed = low != resource_mode_active
+            resource_mode_active = low
+        if not changed:
+            return current
+        if low:
+            # These are the voice processes owned by the Gateway itself. The
+            # desktop independently stops LiveKit and the Agent worker.
+            dictation.close()
+            release = getattr(one_shot, "release", None)
+            if callable(release):
+                release()
+            else:
+                one_shot.stop()
+            conversation.reset()
+            get_logger("voice").info("voice disabled for low-resource mode")
+        elif announce_enabled():
+            threading.Thread(
+                target=one_shot.warm, name="marvi-voice-rewarm", daemon=True
+            ).start()
+        return current
+
+    def require_voice_available() -> None:
+        state = sync_resource_mode()
+        if state.get("low_resource"):
+            raise HTTPException(
+                status_code=503,
+                detail="Voice not working in low-resource mode",
+            )
 
     #: The timer that will clear a held announcement, so a second one cancels
     #: the first rather than being wiped by it a moment later.
@@ -1849,6 +1898,10 @@ def create_app(
         things it *can* check, and says which one is missing rather than
         implying it knows more than it does.
         """
+        if resource_state()["low_resource"]:
+            return ComponentStatus(
+                state="offline", detail="Voice not working in low-resource mode"
+            )
         if not livekit_ready:
             return ComponentStatus(state="pending", detail="no LiveKit server to carry the session")
         missing = [
@@ -1977,12 +2030,17 @@ def create_app(
         runtime_store.expire_transients()
         if sidecar is not None:
             runtime_store.observe_room_event(drain_room_events())
-        livekit_ready = livekit_is_ready()
+        resources = sync_resource_mode()
+        livekit_ready = False if resources["low_resource"] else livekit_is_ready()
         components = {
             "gateway": ComponentStatus(state="ready", detail="local facade online"),
             "livekit": ComponentStatus(
-                state="ready" if livekit_ready else "pending",
-                detail="local server online" if livekit_ready else "local server not running",
+                state="offline" if resources["low_resource"] else ("ready" if livekit_ready else "pending"),
+                detail=(
+                    "Voice not working in low-resource mode"
+                    if resources["low_resource"]
+                    else ("local server online" if livekit_ready else "local server not running")
+                ),
             ),
             "voice": voice_status(livekit_ready),
             "vision": vision_status(),
@@ -2008,6 +2066,7 @@ def create_app(
             components=components,
             assistant=runtime_store.assistant,
             model=model_summary(),
+            resources=ResourceMode(**resources),
         )
 
     @app.get("/health", response_model=RuntimeStatus)
@@ -2020,6 +2079,7 @@ def create_app(
 
     @app.post("/livekit/session", response_model=LiveKitConnection)
     async def livekit_session() -> LiveKitConnection:
+        require_voice_available()
         url = os.environ.get("LIVEKIT_URL", "ws://127.0.0.1:7880")
         key = os.environ.get("LIVEKIT_API_KEY", "devkey")
         secret = os.environ.get("LIVEKIT_API_SECRET", "secret")
@@ -2051,6 +2111,7 @@ def create_app(
 
     @app.post("/speech/read-aloud", response_model=SpeechResult)
     async def read_aloud(request: ReadAloudRequest) -> SpeechResult:
+        require_voice_available()
         outcome = await anyio.to_thread.run_sync(
             lambda: one_shot.speak(request.text, purpose="read_aloud")
         )
@@ -2159,6 +2220,7 @@ def create_app(
             return {"low_resource": False, "because": "", "app": ""}
         body = await request.json()
         state = focus.hold(bool(body.get("low_resource")))
+        await run_in_threadpool(sync_resource_mode, state)
         books.told(low_resource=state["low_resource"], busy_with=state.get("because", ""))
         # The room is told directly. It is paced on focus *transitions*, and a
         # hand-held mode is not one -- so without this the camera would carry
@@ -2186,9 +2248,10 @@ def create_app(
 
     @app.get("/speech/status")
     async def speech_status() -> dict[str, Any]:
+        low = resource_state()["low_resource"]
         return {
-            "enabled": True,
-            "proactive": announce_enabled(),
+            "enabled": not low,
+            "proactive": announce_enabled() and not low,
             "voice": one_shot.voice,
             "device": os.environ.get("MARVI_ANNOUNCE_DEVICE", ""),
             "device_setting": "MARVI_ANNOUNCE_DEVICE",
@@ -2634,6 +2697,7 @@ def create_app(
 
     @app.post("/chat/dictation")
     async def chat_dictation_start(body: ChatDictationStart) -> dict[str, Any]:
+        require_voice_available()
         try:
             identifier = await anyio.to_thread.run_sync(dictation.start, body.language)
             return {"id": identifier, "available": True}
