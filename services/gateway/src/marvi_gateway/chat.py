@@ -2004,6 +2004,9 @@ class Chat:
                             answered_model = str(event.get("model") or answered_model)
                             sample.provider = answered
                             continue
+                        if event.get("prompt_progress"):
+                            yield {"prompt_progress": event["prompt_progress"]}
+                            continue
                         if event.get("reasoning"):
                             reasoning_deltas += 1
                             reasoning.append(str(event["reasoning"]))

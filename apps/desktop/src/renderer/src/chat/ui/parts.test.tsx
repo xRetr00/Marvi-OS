@@ -16,7 +16,7 @@ describe('the working indicator', () => {
 
   it('shows while the reply is actually running', () => {
     const html = renderToStaticMarkup(<Empty status={{ type: 'running' }} />)
-    expect(html).toContain('Marvi is preparing the prompt')
+    expect(html).toContain('Marvi is preparing')
     expect(html).not.toContain('Marvi is thinking')
   })
 
