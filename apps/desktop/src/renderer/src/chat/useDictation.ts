@@ -8,7 +8,7 @@ interface Capture {
   processor: ScriptProcessorNode
 }
 
-export function useDictation(onText: (text: string) => void): {
+export function useDictation(onText: (text: string) => void, enabled = true): {
   active: boolean
   starting: boolean
   partial: string
@@ -36,6 +36,10 @@ export function useDictation(onText: (text: string) => void): {
   }, [])
 
   const start = useCallback(async () => {
+    if (!enabled) {
+      setError('Voice not working in low-resource mode')
+      return
+    }
     if (active || starting) return
     setStarting(true)
     setPartial('')
@@ -88,7 +92,7 @@ export function useDictation(onText: (text: string) => void): {
     } finally {
       setStarting(false)
     }
-  }, [active, starting])
+  }, [active, enabled, starting])
 
   const stop = useCallback(async () => {
     const current = await release()
@@ -110,6 +114,15 @@ export function useDictation(onText: (text: string) => void): {
     },
     []
   )
+
+  useEffect(() => {
+    if (enabled) return
+    const current = capture.current
+    if (!current) return
+    void release().then((ended) => {
+      if (ended) void window.marvi?.cancelChatDictation(ended.id)
+    })
+  }, [enabled, release])
 
   return { active, starting, partial, error, start, stop }
 }

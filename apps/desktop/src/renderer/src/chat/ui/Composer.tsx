@@ -31,6 +31,7 @@ import { SessionModel } from './SessionModel'
 import { useDictation } from '../useDictation'
 import { useStore } from '@nanostores/react'
 import { $interfaceLocale, t } from '../../store/locale'
+import { $runtimeState } from '../../store/voice-state'
 
 export function Composer({
   available,
@@ -55,6 +56,7 @@ export function Composer({
   onNewThread?: () => void
 }): React.JSX.Element {
   const locale = useStore($interfaceLocale)
+  const lowResource = useStore($runtimeState).resources.low_resource
   const fileInput = useRef<HTMLInputElement | null>(null)
   const [focused, setFocused] = useState(false)
   const composer = unstable_useComposerInput()
@@ -65,7 +67,7 @@ export function Composer({
     },
     [composer]
   )
-  const dictation = useDictation(appendDictation)
+  const dictation = useDictation(appendDictation, !lowResource)
   const active = focused || busy || Boolean(composer.value.trim())
   const [said, setSaid] = useState('')
 
@@ -220,7 +222,9 @@ export function Composer({
                 ) : null}
                 <UiTooltip
                   label={
-                    dictation.starting
+                    lowResource
+                      ? 'Voice not working in low-resource mode'
+                      : dictation.starting
                       ? 'Starting dictation'
                       : dictation.active
                         ? 'Stop dictation'
@@ -229,7 +233,9 @@ export function Composer({
                 >
                   <button
                     aria-label={
-                      dictation.starting
+                      lowResource
+                        ? 'Voice not working in low-resource mode'
+                        : dictation.starting
                         ? 'Starting dictation'
                         : dictation.active
                           ? 'Stop dictation'
@@ -237,7 +243,7 @@ export function Composer({
                     }
                     aria-pressed={dictation.active}
                     className={dictation.active ? 'chat-compose-tool active' : 'chat-compose-tool'}
-                    disabled={busy || dictation.starting}
+                    disabled={busy || dictation.starting || lowResource}
                     onClick={() => void (dictation.active ? dictation.stop() : dictation.start())}
                     type="button"
                   >

@@ -2,7 +2,7 @@ import type { Room } from 'livekit-client'
 import { atom } from 'nanostores'
 
 import { connectVoiceRoom, expectDisconnect } from '../lib/livekit-room'
-import { cycleVoicePhase } from './voice-state'
+import { $runtimeState, cycleVoicePhase } from './voice-state'
 
 /**
  * Whether Marvi is in the room, and the two controls that decide it.
@@ -79,6 +79,10 @@ function sayItIsRunning(active: boolean): void {
 }
 
 export async function startVoice(): Promise<void> {
+  if ($runtimeState.get().resources.low_resource) {
+    $voiceError.set('Voice not working in low-resource mode')
+    return
+  }
   if (room || starting) return starting ?? undefined
   $voiceError.set('')
   $voiceLink.set('connecting')

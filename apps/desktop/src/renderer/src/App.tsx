@@ -419,6 +419,10 @@ function MainSurface(): React.JSX.Element {
     []
   )
 
+  useEffect(() => {
+    if (runtime.resources.low_resource && voiceLink !== 'off') void stopVoice()
+  }, [runtime.resources.low_resource, voiceLink])
+
   // The two hotkeys main cannot carry out by itself: stopping a live session
   // lives in the voice store, and the shortcuts window is a renderer surface.
   useEffect(
@@ -535,6 +539,15 @@ function MainSurface(): React.JSX.Element {
           }
         ]
       case 'Voice':
+        if (runtime.resources.low_resource) {
+          return [
+            {
+              icon: Pause,
+              label: 'Voice not working in low-resource mode',
+              onSelect: () => undefined
+            }
+          ]
+        }
         return [
           {
             icon: voice.phase === 'ready' || voice.phase === 'error' ? Play : Pause,
@@ -890,8 +903,11 @@ function MainSurface(): React.JSX.Element {
                         field competing with the orb for the same glance. The
                         header already had the slot. */}
                     <VoiceStatus
+                      disabled={runtime.resources.low_resource}
                       blocker={
-                        runtime.components.gateway?.state !== 'ready'
+                        runtime.resources.low_resource
+                          ? 'Turn off low-resource mode to use voice'
+                          : runtime.components.gateway?.state !== 'ready'
                           ? gatewayCopy(runtime.components.gateway?.detail)
                           : runtime.components.voice?.state !== 'ready'
                             ? gatewayCopy(runtime.components.voice?.detail)
@@ -3589,6 +3605,21 @@ function ServiceHealth({ compact = false }: { compact?: boolean }): React.JSX.El
 }
 
 function VoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
+  if (runtime.resources.low_resource) {
+    return (
+      <section className="voice-page voice-page-disabled" aria-label={t('Voice unavailable')}>
+        <div className="voice-disabled-card" role="status">
+          <AbstractIcon name="voice" size={26} />
+          <strong>{t('Voice not working in low-resource mode')}</strong>
+          <span>{t('Turn off low-resource mode to restore LiveKit, speech and microphone controls.')}</span>
+        </div>
+      </section>
+    )
+  }
+  return <ActiveVoicePanel runtime={runtime} />
+}
+
+function ActiveVoicePanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
   const voice = useStore($voiceState)
   const sessionMetrics = useStore($sessionMetrics)
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([])

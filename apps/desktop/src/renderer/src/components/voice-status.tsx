@@ -22,6 +22,7 @@ export interface VoiceStatusProps {
   link: 'idle' | 'connecting' | 'live' | string
   /** The worker is loading its speech models and cannot hear anything yet. */
   warming: boolean
+  disabled?: boolean
   /** The one line that answers "why is nothing happening", or empty. */
   blocker?: string
   /** Whether the wake word is listening, when that is known. */
@@ -32,17 +33,22 @@ export function VoiceStatus({
   voice,
   link,
   warming,
+  disabled = false,
   blocker
 }: VoiceStatusProps): React.JSX.Element {
-  const phase = warming ? 'starting' : link === 'live' ? voice.phase : 'idle'
-  const word = warming
+  const phase = disabled ? 'disabled' : warming ? 'starting' : link === 'live' ? voice.phase : 'idle'
+  const word = disabled
+    ? 'VOICE OFF'
+    : warming
     ? 'WARMING UP'
     : link === 'live'
       ? voice.phase.toUpperCase()
       : link === 'connecting'
         ? 'JOINING'
         : 'IDLE'
-  const line = warming
+  const line = disabled
+    ? 'Voice not working in low-resource mode'
+    : warming
     ? 'Loading the speech models'
     : link === 'live'
       ? voice.caption
