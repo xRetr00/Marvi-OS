@@ -56,6 +56,32 @@ def test_a_real_environment_variable_wins(tmp_path, monkeypatch) -> None:
     assert os.environ["OPENAI_API_KEY"] == "sk-from-shell"
 
 
+def test_selecting_a_local_provider_enables_offline_model_routing(client) -> None:
+    """A local selection must cover voice and auxiliary calls too.
+
+    Persisting only MARVI_PROVIDER left those surfaces able to choose a cloud
+    provider after the network disappeared, which could kill the voice worker.
+    """
+    page = client.put(
+        "/providers/settings",
+        json={
+            "values": {
+                "MARVI_PROVIDER": "ollama",
+                "MARVI_OLLAMA_ENABLED": "true",
+                "MARVI_OLLAMA_MODEL": "qwen3:8b",
+            }
+        },
+    ).json()
+
+    assert page["settings"]["MARVI_LOCAL_ONLY"] == "true"
+
+    page = client.put(
+        "/providers/settings",
+        json={"values": {"MARVI_PROVIDER": "openai", "OPENAI_API_KEY": "test-key"}},
+    ).json()
+    assert page["settings"]["MARVI_LOCAL_ONLY"] == "false"
+
+
 def test_secrets_are_masked_on_the_way_out(tmp_path) -> None:
     path = tmp_path / "providers.env"
     config.write({"OPENAI_API_KEY": "sk-abcdef123456", "MARVI_OLLAMA_MODEL": "llama4"}, path)

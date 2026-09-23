@@ -232,7 +232,7 @@ See the [delivery phase index](docs/phases/README.md) for the latest acceptance 
 
 ## Questions people ask
 
-**Does Marvi need the cloud?** You can choose local models and enable local-only mode for model calls. If you choose a hosted provider, Marvi sends the request's required text and context to that provider. Raw microphone and camera streams stay local.
+**Does Marvi need the cloud?** You can choose a local model; selecting one automatically enables local-only routing for model calls, including voice and background work, so Marvi continues operating when the PC loses internet. If you choose a hosted provider, Marvi sends the request's required text and context to that provider. Raw microphone and camera streams stay local.
 
 **Can I see what Marvi remembers?** Yes. Cortex exposes memories and relationships, and you can correct, forget, or export them. The Identity page keeps your standing preferences separate from Marvi's editable personality.
 

@@ -5609,7 +5609,22 @@ def create_app(
                 status_code=422,
                 detail=f"{WEB_FETCHER_SETTING} must be one of: {', '.join(WEB_FETCHERS)}",
             )
-        provider_config.update(update.values)
+        values = dict(update.values)
+        # Choosing a local model is an offline-runtime decision, not only a
+        # label for the Models page.  Without this, the main call used the
+        # selected local provider while auxiliary work and voice could still
+        # fall through to a configured cloud provider.  Losing the network
+        # then killed the voice job and made the desktop look shut down.
+        # Keep the policy in the Gateway, where every surface reads it, rather
+        # than relying on one renderer to remember a second setting.
+        selected = values.get("MARVI_PROVIDER", "").strip()
+        if selected:
+            profile = provider_get(selected)
+            if profile is not None:
+                values["MARVI_LOCAL_ONLY"] = (
+                    "true" if profile.access_path == "local" else "false"
+                )
+        provider_config.update(values)
         # A key typed in a moment ago must not appear in the next log line.
         redactor().refresh()
         # Connecting a provider that was cooling down should retry it, not wait
@@ -5620,7 +5635,7 @@ def create_app(
             "providers",
             "settings",
             # Never audit the values; several of them are credentials.
-            {"changed": sorted(update.values)},
+            {"changed": sorted(values)},
         )
         return await providers()
 
