@@ -273,6 +273,20 @@ def test_stable_system_and_history_precede_volatile_context(store, tmp_path) -> 
     assert first[4]["content"] == "current question"
 
 
+def test_recent_history_drops_old_whole_turns_before_prompt_overflow(store) -> None:
+    from marvi_gateway.chat import HISTORY_CHARS
+
+    for index in range(4):
+        store.append("user", f"old question {index} " + ("x" * 8_000))
+        store.append("assistant", f"old answer {index}")
+
+    rows = Chat(store=store)._recent()
+
+    assert "old question 0" not in "\n".join(str(row["content"]) for row in rows)
+    assert "old question 3" in "\n".join(str(row["content"]) for row in rows)
+    assert sum(len(str(row["content"])) for row in rows) <= HISTORY_CHARS
+
+
 def test_no_provider_is_a_clear_message_not_a_crash(store, monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(
         "marvi_gateway.providers.ProviderClient.candidates", lambda self, preferred=None: []

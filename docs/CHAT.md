@@ -51,7 +51,9 @@ ephemeral input state.
   directly after it, and places date/time, automatic memory recall, curiosity,
   plugin ambient state, self-awareness, and skill context in one bounded
   message immediately before the active user turn. This layout is designed for
-  llama.cpp longest-common-prefix KV-cache reuse.
+  llama.cpp longest-common-prefix KV-cache reuse. Older replayed turns are
+  bounded by a character budget and removed as whole turns when necessary;
+  this protects the input context without imposing a fixed reply-token cap.
 
 Handed-off work is reported back. When a `delegate` or `delegate_to_coder` job
 this thread started ends (per the `/agents` feed) and no turn is running, the

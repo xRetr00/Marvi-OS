@@ -269,6 +269,35 @@ def test_a_dead_provider_falls_through_to_the_next(monkeypatch) -> None:
     assert client.resting("ollama") > 0
 
 
+def test_local_model_path_is_not_sent_to_cloud_fallback(monkeypatch) -> None:
+    from marvi_gateway.providers import get
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv(get("llamacpp").enabled_setting(), "true")
+    monkeypatch.delenv("MARVI_PROVIDER", raising=False)
+    seen: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(request.content))
+        if "127.0.0.1:8080" in str(request.url):
+            return httpx.Response(500)
+        return httpx.Response(200, json=openai_payload(text="cloud fallback"))
+
+    client = ProviderClient(http=httpx.Client(transport=httpx.MockTransport(handler)))
+    result = client.call_with_fallback(
+        MESSAGES,
+        model=r"C:\models\assistant.gguf",
+    )
+
+    assert result is not None
+    cloud_attempts = [
+        payload
+        for payload in seen
+        if payload.get("model") != r"C:\models\assistant.gguf"
+    ]
+    assert cloud_attempts
+
+
 def test_everything_exhausted_is_a_clear_error() -> None:
     client = ProviderClient(http=responder(status=500))
     with pytest.raises(AllProvidersExhaustedError):

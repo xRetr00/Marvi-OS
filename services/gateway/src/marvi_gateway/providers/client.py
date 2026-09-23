@@ -49,6 +49,35 @@ logger = logging.getLogger(__name__)
 LOCAL_ONLY_SETTING = "MARVI_LOCAL_ONLY"
 
 
+def _is_local_model_reference(model: str | None) -> bool:
+    """Whether a model name is a local artifact, not a portable model ID."""
+    if not model:
+        return False
+    value = model.strip().lower()
+    return value.endswith((".gguf", ".safetensors")) or ":\\" in value or value.startswith(
+        ("/", "\\\\")
+    )
+
+
+def _model_for_attempt(
+    requested: str | None, profile: ProviderProfile, job: str
+) -> str | None:
+    """Do not send a local filesystem path to a cloud fallback."""
+    if _is_local_model_reference(requested) and profile.access_path != "local":
+        replacement = profile.model_for(job) or None
+        logger.warning(
+            "discarding local model reference for cloud fallback",
+            extra={
+                "marvi_provider": profile.name,
+                "marvi_job": job,
+                "marvi_requested_model": requested,
+                "marvi_fallback_model": replacement or "provider default",
+            },
+        )
+        return replacement
+    return requested
+
+
 def local_only() -> bool:
     from ..privacy import on as privacy_on
 
@@ -964,10 +993,14 @@ class ProviderClient:
             )
 
         last: Exception | None = None
+        requested_model = kwargs.get("model")
+        job = str(kwargs.get("job", "main"))
         for profile in attempts:
             started = False
             try:
-                for event in self.stream(messages, provider=profile, **kwargs):
+                attempt_kwargs = dict(kwargs)
+                attempt_kwargs["model"] = _model_for_attempt(requested_model, profile, job)
+                for event in self.stream(messages, provider=profile, **attempt_kwargs):
                     if not started:
                         started = True
                         yield {"provider": profile.name}
@@ -996,6 +1029,8 @@ class ProviderClient:
                 "No provider is available; all are unconfigured or cooling down."
             )
         last: Exception | None = None
+        requested_model = kwargs.get("model")
+        job = str(kwargs.get("job", "main"))
         logger.info(
             "model fallback route resolved",
             extra={
@@ -1008,7 +1043,9 @@ class ProviderClient:
         )
         for profile in attempts:
             try:
-                return self.call(messages, provider=profile, **kwargs)
+                attempt_kwargs = dict(kwargs)
+                attempt_kwargs["model"] = _model_for_attempt(requested_model, profile, job)
+                return self.call(messages, provider=profile, **attempt_kwargs)
             except ProviderCallError as exc:
                 logger.warning(
                     "model fallback attempt failed",

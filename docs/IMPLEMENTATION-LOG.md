@@ -1,5 +1,18 @@
 # Implementation Log
 
+## 2026-09-24 — Provider fallback and prompt-budget hardening
+
+- Prevented a local GGUF/safetensors filesystem path from being forwarded as a
+  model ID when llama.cpp fails over to a cloud provider. The fallback now uses
+  that provider's configured job model or its default, with a structured warning
+  recording the substitution.
+- Added a 28,000-character replay budget for old Chat history. Turns are
+  discarded oldest-first as complete user/assistant units, while the current
+  request and reply policy remain uncapped by Marvi. This addresses the logged
+  16,838-token context overflow without changing the stable-prefix layout.
+- Regression coverage passes for local-path fallback and whole-turn history
+  trimming. Focused Gateway suite: 75 passed.
+
 ## 2026-09-23 — Stable chat prefix and bounded volatile context
 
 - Split Chat prompt assembly into a stable identity/instruction system message

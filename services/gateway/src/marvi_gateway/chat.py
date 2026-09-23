@@ -66,6 +66,10 @@ HISTORY_TURNS = 24
 #: Rows to read in order to find those turns. Generous, and still bounded --
 #: the store caps this at 200 either way.
 HISTORY_ROWS = 200
+# Replay budget for old turns, separate from the unbounded reply policy. This
+# leaves room for identity, tools, current context, and model reasoning on
+# local servers configured around a 16K context window.
+HISTORY_CHARS = 28_000
 #: How many remembered notes may ride along with a turn, and how much room they
 #: share. Small on purpose: recall is meant to remind, not to reintroduce the
 #: whole archive on every message.
@@ -1198,9 +1202,20 @@ class Chat:
         """
         rows = self.store.history(limit=HISTORY_ROWS, thread_id=thread_id)
         starts = [i for i, row in enumerate(rows) if row["role"] == "user"]
-        if len(starts) <= HISTORY_TURNS:
-            return rows
-        return rows[starts[-HISTORY_TURNS] :]
+        kept = rows if len(starts) <= HISTORY_TURNS else rows[starts[-HISTORY_TURNS] :]
+
+        def size(items: list[dict[str, Any]]) -> int:
+            return sum(len(str(row.get("content") or "")) for row in items)
+
+        # Keep whole turns, including their tool exchanges. Walk backwards so
+        # the active turn always survives; older material is excluded rather
+        # than being allowed to overflow llama.cpp.
+        while size(kept) > HISTORY_CHARS:
+            user_positions = [i for i, row in enumerate(kept) if row["role"] == "user"]
+            if len(user_positions) <= 1:
+                break
+            kept = kept[user_positions[1] :]
+        return kept
 
     def compact(self, thread_id: str = DEFAULT_THREAD_ID) -> str:
         """Fold whatever has scrolled out of the window into the summary.
