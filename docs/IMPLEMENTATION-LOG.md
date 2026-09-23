@@ -11,17 +11,19 @@
   message, preserving the stable prefix and history for provider KV-cache
   reuse. The stable system message is byte-identical across changing recall
   context, covered by Gateway regression tests.
-- Verified the running Gemma 4 QAT GGUF through llama.cpp `/props` and
-  `/apply-template`: the model supports system roles and tools, and renders
-  `system → user history → system volatile context → user current turn →
-  model generation` as separate `<|turn|>` blocks with the expected
-  `<|think|>` system preamble.
+- Verified the Gemma 4 QAT GGUF through llama.cpp `/props` and
+  `/apply-template`: it supports system roles and tools and preserves the
+  intended ordered turns. The active Qwen3 llama.cpp server then exposed the
+  compatibility edge: its template rejects any system message after the first
+  one. The marked user context is therefore intentional and keeps the same
+  ordering without a model-name exception.
 - Tokenized two rendered prompts with llama.cpp `/tokenize` using the same
   stable prefix, history, and current-turn shape while changing only volatile
-  date/context. Longest common prefix improved from 34/75 tokens (45.33%) with
-  volatile content inside the initial system message to 58/79 tokens (73.42%)
-  with the separated layout. This is a rendered-template LCP measurement, not
-  a claim that llama-server's cache remained resident between unrelated runs.
+  date/context. On the active Qwen3 server, longest common prefix improved from
+  70/117 tokens (59.83%) with volatile content inside the initial system
+  message to 121/144 tokens (84.03%) with the separated marked-context layout.
+  This is a rendered-template LCP measurement, not a claim that llama-server's
+  cache remained resident between unrelated runs.
 
 ## 2026-09-23 — Easy locale expansion
 

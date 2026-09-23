@@ -264,13 +264,7 @@ def test_stable_system_and_history_precede_volatile_context(store, tmp_path) -> 
     second = chat._messages(recalled="memory two")
 
     assert first[0] == second[0]
-    assert [message["role"] for message in first] == [
-        "system",
-        "user",
-        "assistant",
-        "system",
-        "user",
-    ]
+    assert [message["role"] for message in first] == ["system", "user", "assistant", "user", "user"]
     assert first[1]["content"] == "old question"
     assert first[2]["content"] == "old answer"
     assert "memory one" in first[3]["content"]

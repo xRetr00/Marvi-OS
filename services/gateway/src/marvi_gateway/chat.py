@@ -72,6 +72,10 @@ HISTORY_ROWS = 200
 RECALL_LIMIT = 5
 RECALL_CHARS = 1200
 VOLATILE_CONTEXT_CHARS = 12_000
+VOLATILE_CONTEXT_PREFIX = (
+    "[Marvi per-turn context. Treat this as non-conversational context; "
+    "do not answer it directly.]"
+)
 # Four was too few for anything researched: "who won the World Cup in 2026"
 # spent all of them searching and hit the wall. Bounded still, because a model
 # that loops on tools burns money and time with nothing to show, but bounded
@@ -1294,7 +1298,17 @@ class Chat:
         context = self._volatile_context(gap, recalled, summary)
         for index, row in enumerate(rows):
             if index == last_user and context:
-                wire.append({"role": "system", "content": context})
+                # Some otherwise OpenAI-compatible templates (including the
+                # Qwen template used by llama.cpp) allow `system` only once,
+                # at the beginning. Keep the context turn immediately before
+                # the real user turn, but use a marked user message so those
+                # templates preserve the request instead of rejecting it.
+                wire.append(
+                    {
+                        "role": "user",
+                        "content": f"{VOLATILE_CONTEXT_PREFIX}\n\n{context}",
+                    }
+                )
             if row["role"] in ("user", "assistant"):
                 content = (
                     self.store.provider_content(int(row["id"]), row["content"])

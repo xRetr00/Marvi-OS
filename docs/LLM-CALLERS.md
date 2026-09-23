@@ -61,9 +61,10 @@ The remaining identity gap is Voice and Vision, not Mind or memory reflection.
 and `identity.compose()` is called each time. Its output is the stable first
 system message; replayed history follows it immediately, and date/time,
 summary, automatic memory recall, curiosity, plugin context, self-awareness,
-and skills are one bounded system message immediately before the active user
-turn. This keeps the stable identity/tool prefix byte-identical for llama.cpp
-longest-common-prefix reuse. For voice, LiveKit sends
+and skills are one bounded, explicitly marked context message immediately
+before the active user turn. This keeps the stable identity/tool prefix
+byte-identical for llama.cpp longest-common-prefix reuse while remaining
+compatible with templates that reject later system messages. For voice, LiveKit sends
 `instructions` once when the `Agent` is constructed and reuses it for the
 session. For mind and vision, a constant goes out with each request.
 
