@@ -264,7 +264,7 @@ def test_setup_plan_inspects_each_component_once(monkeypatch) -> None:
     calls: list[str] = []
     progress: list[str] = []
 
-    def state_of(component, _root, deep=True):
+    def state_of(component, _root, deep=True, presence_only=False):
         calls.append(component.name)
         return {"installed": component.name == "one"}
 
@@ -287,7 +287,7 @@ def test_setup_screen_can_plan_without_hashing_files(monkeypatch) -> None:
     )
     calls: list[bool] = []
 
-    def state_of(_component, _root, deep=True):
+    def state_of(_component, _root, deep=True, presence_only=False):
         calls.append(deep)
         return {"installed": True}
 

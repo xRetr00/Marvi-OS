@@ -60,8 +60,10 @@ class FileSpec:
     size: int
     sha256: str
 
-    def verify(self, base: Path, deep: bool = True) -> tuple[bool, str]:
-        """Check one file. `deep` hashes it; shallow checks presence and size.
+    def verify(
+        self, base: Path, deep: bool = True, presence_only: bool = False
+    ) -> tuple[bool, str]:
+        """Check one file, optionally only asking whether it exists.
 
         Hashing a 2.4 GB model takes about two and a half seconds. That is fine
         on the Setup page, where the user asked, and ruinous on the health
@@ -75,6 +77,8 @@ class FileSpec:
         target = base / self.path
         if not target.exists():
             return False, "missing"
+        if presence_only:
+            return True, "present"
         actual_size = target.stat().st_size
         if self.size and actual_size != self.size:
             # Cheap, and catches the common failure: an interrupted download.
@@ -138,7 +142,7 @@ class Component:
             return f"{self.base_url.rstrip('/')}/{spec.path}"
         raise ValueError(f"{self.name} is not downloadable ({self.source_type})")
 
-    def status(self, deep: bool = True) -> dict[str, Any]:
+    def status(self, deep: bool = True, presence_only: bool = False) -> dict[str, Any]:
         """Installed, partly installed, or missing — with the reason per file.
 
         `deep=False` skips hashing, for callers on a hot path. See
@@ -148,7 +152,7 @@ class Component:
             # The archive is verified on the way in and then thrown away, so
             # the unpacked binary is the only thing left to check.
             target = self.target() / self.binary
-            if target.exists() and target.stat().st_size > 0:
+            if target.exists() and (presence_only or target.stat().st_size > 0):
                 return {"installed": True, "detail": "unpacked", "problems": []}
             return {"installed": False, "detail": "not installed", "problems": []}
         if self.source_type == "git" and not self.files:
@@ -169,13 +173,13 @@ class Component:
         base = self.target()
         problems = []
         for spec in self.files:
-            ok, reason = spec.verify(base, deep=deep)
+            ok, reason = spec.verify(base, deep=deep, presence_only=presence_only)
             if not ok:
                 problems.append({"file": spec.path, "reason": reason})
         if not problems:
             return {
                 "installed": True,
-                "detail": "verified" if deep else "present",
+                "detail": "verified" if deep and not presence_only else "present",
                 "problems": [],
             }
         if len(problems) == len(self.files):

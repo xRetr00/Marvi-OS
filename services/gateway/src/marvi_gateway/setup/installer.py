@@ -485,7 +485,12 @@ def command_installed(component: Component, repo_root: Path) -> bool:
     return finished.returncode == 0
 
 
-def state_of(component: Component, repo_root: Path, deep: bool = True) -> dict[str, Any]:
+def state_of(
+    component: Component,
+    repo_root: Path,
+    deep: bool = True,
+    presence_only: bool = False,
+) -> dict[str, Any]:
     """A component's real state, including the kinds a file map cannot describe.
 
     `Component.status()` only knows about downloaded files, so it answered
@@ -513,7 +518,7 @@ def state_of(component: Component, repo_root: Path, deep: bool = True) -> dict[s
         if command_installed(component, repo_root):
             return {"installed": True, "detail": "present", "problems": []}
         return {"installed": False, "detail": "not installed", "problems": []}
-    return component.status(deep=deep)
+    return component.status(deep=deep, presence_only=presence_only)
 
 
 def verify(component: Component) -> Outcome:
@@ -582,6 +587,7 @@ def plan(
     repo_root: Path | None = None,
     progress: Callable[[str], None] | None = None,
     deep: bool = True,
+    presence_only: bool = False,
 ) -> dict[str, Any]:
     """What a setup run would do, before it does it.
 
@@ -594,9 +600,14 @@ def plan(
             # screen refresh; file/model components can use presence and size
             # without hashing gigabytes of already-downloaded weights.
             checked_deep = deep or component.kind == "command"
-            state = state_of(component, repo_root, deep=checked_deep)
+            state = state_of(
+                component,
+                repo_root,
+                deep=checked_deep,
+                presence_only=presence_only,
+            )
         else:
-            state = component.status(deep=deep)
+            state = component.status(deep=deep, presence_only=presence_only)
         return bool(state["installed"])
 
     # The checks can touch model manifests and virtual environments. Keeping

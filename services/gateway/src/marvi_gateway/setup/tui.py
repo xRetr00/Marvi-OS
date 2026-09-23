@@ -272,6 +272,7 @@ def run(
                 components,
                 progress=lambda title: report(f"Checking {title} - no downloads"),
                 deep=False,
+                presence_only=True,
             )
         missing = current["install"]
         console.print(_components_table(components, missing))
