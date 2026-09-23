@@ -64,28 +64,20 @@ export function TitleBar({
   page,
   sidebarCollapsed = false
 }: TitleBarProps): React.JSX.Element {
+  const sidebarLabel = sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'
+  const titlebarSidebarLabel =
+    sidebarCollapsed && onBackToMainMenu ? 'Back to main menu' : sidebarLabel
+
   return (
     <header className="titlebar" data-shell-context="titlebar">
       <div className="titlebar-brand">
         {onToggleSidebar ? (
           <UiTooltip
-            label={t(
-              sidebarCollapsed && onBackToMainMenu
-                ? 'Back to main menu'
-                : sidebarCollapsed
-                  ? 'Show sidebar'
-                  : 'Hide sidebar'
-            )}
+            label={t(titlebarSidebarLabel)}
             side="bottom"
           >
             <button
-              aria-label={t(
-                sidebarCollapsed && onBackToMainMenu
-                  ? 'Back to main menu'
-                  : sidebarCollapsed
-                    ? 'Show sidebar'
-                    : 'Hide sidebar'
-              )}
+              aria-label={t(titlebarSidebarLabel)}
               aria-pressed={!sidebarCollapsed}
               className="titlebar-control titlebar-sidebar-toggle no-drag"
               onClick={() => {
