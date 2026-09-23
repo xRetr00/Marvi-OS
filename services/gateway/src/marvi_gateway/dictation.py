@@ -158,9 +158,10 @@ class DictationManager:
         self._popen = popen
         self._sessions: dict[str, _Session] = {}
         self._lock = threading.Lock()
+        self.enabled: Callable[[], bool] = lambda: True
 
     def available(self) -> bool:
-        return bool(worker_command()) and bool(engine())
+        return self.enabled() and bool(worker_command()) and bool(engine())
 
     def start(self, language: str = "en-US") -> str:
         with self._lock:

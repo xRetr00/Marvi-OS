@@ -292,6 +292,7 @@ class Announcer:
         self._serial = threading.Lock()
         self._state = threading.Lock()
         self._current: threading.Event | None = None
+        self.enabled: Any = lambda: True
 
     def warm(self) -> bool:
         """Load the voice now, so the first thing she says is not a cold start.
@@ -334,7 +335,7 @@ class Announcer:
         """
         import sys
 
-        if "pytest" in sys.modules:
+        if not self.enabled() or "pytest" in sys.modules:
             return False
         try:
             self._ensure_model()
@@ -406,6 +407,8 @@ class Announcer:
         return self._model
 
     def synthesize(self, text: str) -> tuple[bytes, int]:
+        if not self.enabled():
+            raise AnnounceUnavailableError("Voice not working in low-resource mode")
         spoken = (text or "").strip()
         if not spoken:
             raise AnnounceUnavailableError("nothing to say")
@@ -463,6 +466,12 @@ class Announcer:
         self, text: str, purpose: str = "proactive", source: str = "marvi"
     ) -> dict[str, Any]:
         """Replace current one-shot speech, synthesize, and play to completion."""
+        if not self.enabled():
+            return {
+                "played": False,
+                "cancelled": False,
+                "error": "Voice not working in low-resource mode",
+            }
         limit = MAX_READ_ALOUD_CHARS if purpose == "read_aloud" else MAX_PROACTIVE_CHARS
         spoken = " ".join((text or "").split())[:limit]
         pieces = _chunks(spoken)

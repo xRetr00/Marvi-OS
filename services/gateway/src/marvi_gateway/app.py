@@ -1201,7 +1201,7 @@ def create_app(
                 one_shot.stop()
             conversation.reset()
             get_logger("voice").info("voice disabled for low-resource mode")
-        elif announce_enabled():
+        elif announce_enabled() and callable(getattr(one_shot, "warm", None)):
             threading.Thread(
                 target=one_shot.warm, name="marvi-voice-rewarm", daemon=True
             ).start()
@@ -1214,6 +1214,10 @@ def create_app(
                 status_code=503,
                 detail="Voice not working in low-resource mode",
             )
+
+    dictation.enabled = lambda: not resource_state()["low_resource"]
+    if hasattr(one_shot, "enabled"):
+        one_shot.enabled = lambda: not resource_state()["low_resource"]
 
     #: The timer that will clear a held announcement, so a second one cancels
     #: the first rather than being wiped by it a moment later.
