@@ -54,6 +54,7 @@ DEFAULT_CORE = (
     "memory_recall",
     "memory_remember",
     "web_search",
+    "web_fetch",
     "file_search",
 )
 
@@ -153,7 +154,10 @@ def core_tools() -> set[str]:
     """The always-loaded set, which the user can change without code."""
     raw = os.environ.get(CORE_SETTING, "").strip()
     chosen = {name.strip() for name in raw.replace(";", ",").split(",") if name.strip()}
-    return (chosen or set(DEFAULT_CORE)) | {SEARCH_TOOL}
+    # Web search without page fetching leaves the model with snippets and
+    # stale summaries. These two are a permanent pair even when a custom core
+    # list is configured, so deferred mode can always verify what it finds.
+    return (chosen or set(DEFAULT_CORE)) | {SEARCH_TOOL, "web_search", "web_fetch"}
 
 
 def _words(text: str) -> list[str]:

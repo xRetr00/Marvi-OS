@@ -100,7 +100,13 @@ def test_the_search_tool_is_always_core() -> None:
 def test_the_core_set_can_be_changed_without_code(monkeypatch) -> None:
     monkeypatch.setenv(CORE_SETTING, "room_state, web_search")
 
-    assert core_tools() == {"room_state", "web_search", SEARCH_TOOL}
+    assert core_tools() == {"room_state", "web_search", "web_fetch", SEARCH_TOOL}
+
+
+def test_web_tools_are_always_core(monkeypatch) -> None:
+    monkeypatch.setenv(CORE_SETTING, "room_state")
+
+    assert {"web_search", "web_fetch"}.issubset(core_tools())
 
 
 def test_an_empty_setting_falls_back_to_the_default(monkeypatch) -> None:

@@ -339,7 +339,14 @@ def register_web_tools(registry, web: WebTools) -> None:
 
     def web_search(query: str, limit: int = DEFAULT_RESULTS) -> dict[str, Any]:
         results = web.search(query, limit)
-        return wrap_external(f"web:search:{web.provider()}", results).model_dump()
+        # Keep the reminder beside the snippets: search results are leads, not
+        # page contents. It is deliberately inside the same external envelope
+        # so the model cannot mistake a page's text for a system instruction.
+        payload = {
+            "results": results,
+            "hint": "Use web_fetch on promising result URLs to read the actual page for better results.",
+        }
+        return wrap_external(f"web:search:{web.provider()}", payload).model_dump()
 
     def web_extract(url: str, question: str = "") -> dict[str, Any]:
         return wrap_external(f"web:{url}", web.extract(url, question)).model_dump()

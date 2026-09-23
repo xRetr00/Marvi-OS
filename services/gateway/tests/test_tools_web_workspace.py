@@ -194,6 +194,7 @@ async def test_web_results_reach_the_router_enveloped(monkeypatch, tmp_path) -> 
     assert "UNTRUSTED" in result["text"]
     assert result["signals"]  # the hostile snippet is flagged for the audit
     assert "Ignore all previous instructions" in result["text"]
+    assert "Use web_fetch" in result["text"]
 
 
 # -- workspace --------------------------------------------------------------
