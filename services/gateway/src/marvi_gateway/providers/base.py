@@ -453,6 +453,9 @@ class ProviderProfile:
             # Without this many OpenAI-compatible servers omit usage entirely
             # on streamed responses, and the token budget goes blind.
             body["stream_options"] = {"include_usage": True}
+            if self.name == "llamacpp":
+                body["return_progress"] = True
+                body["sse_ping_interval"] = 1
         if temperature is not None:
             body["temperature"] = temperature
         from . import effort as effort_control
@@ -592,6 +595,24 @@ class ProviderProfile:
             return None
 
         # chat_completions
+        prompt_progress = chunk.get("prompt_progress")
+        if isinstance(prompt_progress, dict):
+            total = int(prompt_progress.get("total", 0) or 0)
+            cached = int(prompt_progress.get("cache", 0) or 0)
+            processed = int(prompt_progress.get("processed", 0) or 0)
+            denominator = max(0, total - cached)
+            completed = max(0, processed - cached)
+            return {
+                "prompt_progress": {
+                    "total": total,
+                    "cached": cached,
+                    "processed": processed,
+                    "time_ms": float(prompt_progress.get("time_ms", 0) or 0),
+                    "percent": round(min(100.0, completed / denominator * 100), 1)
+                    if denominator
+                    else 0.0,
+                }
+            }
         choices = chunk.get("choices") or []
         if choices:
             delta = choices[0].get("delta") or {}

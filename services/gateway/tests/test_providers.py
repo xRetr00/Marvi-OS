@@ -184,6 +184,20 @@ def test_streaming_asks_for_usage_too() -> None:
     assert body["stream_options"] == {"include_usage": True}
 
 
+def test_llama_cpp_streaming_requests_prompt_progress() -> None:
+    body = get("llamacpp").build_request(MESSAGES, model="qwen3", stream=True)
+
+    assert body["return_progress"] is True
+    assert body["sse_ping_interval"] == 1
+
+
+def test_cloud_streaming_does_not_request_local_prompt_progress() -> None:
+    body = profile().build_request(MESSAGES, model="m", stream=True)
+
+    assert "return_progress" not in body
+    assert "sse_ping_interval" not in body
+
+
 def test_streaming_is_dropped_when_unsupported() -> None:
     body = profile(supports_streaming=False).build_request(MESSAGES, stream=True)
     assert "stream" not in body

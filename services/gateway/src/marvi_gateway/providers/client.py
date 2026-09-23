@@ -774,6 +774,9 @@ class ProviderClient:
                     if piece.get("usage"):
                         usage = profile.read_usage(piece["usage"])
                         continue
+                    if piece.get("prompt_progress") and profile.name == "llamacpp":
+                        yield {"prompt_progress": piece["prompt_progress"]}
+                        continue
                     if piece.get("delta"):
                         yield {"delta": piece["delta"]}
                     elif piece.get("reasoning"):

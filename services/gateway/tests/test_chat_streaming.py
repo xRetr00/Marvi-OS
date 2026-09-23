@@ -166,6 +166,23 @@ def test_llama_cpp_reasoning_and_terminal_metadata_survive_chat(tmp_path, config
     assert done["tokens"] == 14
 
 
+def test_llama_cpp_prompt_progress_is_normalized_and_forwarded(tmp_path, configured) -> None:
+    configured("llamacpp")
+    body = sse(
+        '{"prompt_progress":{"total":12000,"cache":3000,"processed":7500,"time_ms":420}}',
+        '{"choices":[{"delta":{"content":"Done."}}]}',
+    )
+    chat = Chat(
+        store=ChatStore(tmp_path / "chat.sqlite3"),
+        client=ProviderClient(http=responder(body)),
+    )
+
+    events = list(chat.send_stream("hello", provider="llamacpp", model="qwen3"))
+
+    progress = next(event["prompt_progress"] for event in events if "prompt_progress" in event)
+    assert progress["percent"] == 50.0
+
+
 def test_reasoning_is_a_separate_event_and_never_the_answer(tmp_path) -> None:
     """The one thing that must not leak into what Marvi says."""
     body = sse(
