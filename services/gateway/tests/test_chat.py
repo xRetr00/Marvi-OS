@@ -227,11 +227,12 @@ def test_history_is_replayed_so_it_is_one_conversation(store, tmp_path) -> None:
     assert "ok" in contents
 
 
-def test_identity_is_in_the_system_prompt(store, tmp_path) -> None:
+def test_voice_soul_does_not_limit_typed_chat_but_user_context_does(store, tmp_path) -> None:
     from marvi_gateway.identity import IdentityFiles
 
     files = IdentityFiles(tmp_path)
-    files.write_soul("You are extremely terse.")
+    files.write_soul("You are extremely terse. One thought per turn.")
+    files.write_user("The user's standing preference is detailed written answers.")
     seen: list[dict] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -244,8 +245,9 @@ def test_identity_is_in_the_system_prompt(store, tmp_path) -> None:
         identity=files,
     ).send("hi")
 
-    # Chat is the same Marvi, so it gets the same identity the voice path does.
-    assert "You are extremely terse." in seen[0]["messages"][0]["content"]
+    prompt = seen[0]["messages"][0]["content"]
+    assert "One thought per turn" not in prompt
+    assert "detailed written answers" in prompt
 
 
 def test_no_provider_is_a_clear_message_not_a_crash(store, monkeypatch, tmp_path) -> None:

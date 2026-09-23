@@ -43,6 +43,10 @@ ephemeral input state.
   Preferences can enable Deferred Marvi tools, which keeps every tool callable
   while shortening non-core schemas to reduce the prompt prefix and improve
   local KV-cache reuse.
+- Typed Chat does not inherit the voice persona from `SOUL.md`: spoken
+  turn-taking rules such as “one thought per turn” and “usually heard, not
+  read” stay on Voice. User-authored standing context remains available to
+  Chat.
 
 Handed-off work is reported back. When a `delegate` or `delegate_to_coder` job
 this thread started ends (per the `/agents` feed) and no turn is running, the

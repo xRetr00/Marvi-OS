@@ -1190,7 +1190,13 @@ class Chat:
         # it is different on every turn and would break the cacheable prefix.
         if recalled:
             brief = "\n\n".join([brief, recalled])
-        return self.identity.compose(brief)
+        # SOUL.md is the spoken-room persona. Its brevity and turn-taking rules
+        # are correct for LiveKit voice, but they were leaking into typed Chat
+        # (and into the model's visible reasoning) with instructions such as
+        # "one thought per turn" and "usually heard, not read". Keep the
+        # user's standing context, while letting the Chat prompt own written
+        # length and structure.
+        return self.identity.compose(brief, in_character=surface != "chat")
 
     def _recent(self, thread_id: str = DEFAULT_THREAD_ID) -> list[dict[str, Any]]:
         """The last `HISTORY_TURNS` exchanges, whole.
