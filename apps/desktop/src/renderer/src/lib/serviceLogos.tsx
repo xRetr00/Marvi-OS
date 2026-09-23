@@ -13,6 +13,7 @@ import ClaudeCode from '@thesvg/react/claude-code'
 import DeepInfra from '@thesvg/react/deepinfra'
 import DeepSeek from '@thesvg/react/deepseek'
 import LiveKit from '@thesvg/react/livekit'
+import LocalAi from '@thesvg/react/localai'
 import LmStudio from '@thesvg/react/lm-studio'
 import Ollama from '@thesvg/react/ollama'
 import OpenAI from '@thesvg/react/openai'
@@ -29,6 +30,7 @@ export const SERVICE_LOGOS: Readonly<Record<string, ServiceLogoComponent>> = Obj
   deepinfra: DeepInfra,
   deepseek: DeepSeek,
   livekit: LiveKit,
+  llamacpp: LocalAi,
   vllm: Vllm,
   lmstudio: LmStudio,
   ollama: Ollama,

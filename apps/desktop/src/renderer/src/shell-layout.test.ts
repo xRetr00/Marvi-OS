@@ -445,7 +445,7 @@ describe('service logos', () => {
 
   it('uses tree-shakeable TheSVG imports for external service identities', () => {
     expect(logos).not.toMatch(/from '@thesvg\/react'/)
-    expect(logos.match(/from '@thesvg\/react\/[a-z0-9-]+'/g)?.length).toBe(11)
+    expect(logos.match(/from '@thesvg\/react\/[a-z0-9-]+'/g)?.length).toBe(12)
     for (const provider of [
       'anthropic',
       'claude-code',
@@ -459,7 +459,8 @@ describe('service logos', () => {
       'openai-responses',
       'opencode-go',
       'opencode-zen',
-      'openrouter'
+      'openrouter',
+      'vllm'
     ]) {
       expect(logos).toContain(`${provider.includes('-') ? `'${provider}'` : provider}:`)
     }
