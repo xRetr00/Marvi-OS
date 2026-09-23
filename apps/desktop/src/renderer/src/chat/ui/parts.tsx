@@ -104,15 +104,15 @@ const File = ({ filename, mimeType }: FileMessagePartProps): React.JSX.Element =
  * It checks its own status, and that check is the whole point. The SDK renders
  * this slot whenever a message *ends* on something that is not text or
  * reasoning -- a reply that finished on a widget or a tool card qualifies --
- * so a turn that ended perfectly well sat there saying "Marvi is working"
+ * so a turn that ended perfectly well sat there saying "Marvi is preparing"
  * forever, including after the next turn had started.
  */
 const Empty = ({ status }: EmptyMessagePartProps): React.JSX.Element | null => {
   if (status?.type !== 'running') return null
   return (
     <div className="chat-scaffold chat-stream-activity" data-conversation-scaffold="">
-      <GlyphSpinner ariaLabel="Marvi is working" className="chat-working-spinner" />
-      <ActivityLabel live text="Marvi is working" />
+      <GlyphSpinner ariaLabel="Marvi is preparing" className="chat-working-spinner" />
+      <ActivityLabel live text="Marvi is preparing" />
     </div>
   )
 }
