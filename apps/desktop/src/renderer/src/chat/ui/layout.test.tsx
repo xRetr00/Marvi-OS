@@ -15,7 +15,7 @@ import { Chat } from '../Chat'
  * every message went full-bleed across the window while the composer stretched
  * with it. Nothing in a type or a snapshot catches that; this does.
  */
-const html = renderToStaticMarkup(<Chat onExit={() => {}} />)
+const html = renderToStaticMarkup(<Chat onExit={() => {}} sidebarHidden={false} />)
 const css = readFileSync(join(__dirname, '..', 'chat.css'), 'utf8')
 const ui = readFileSync(join(__dirname, 'ask.css'), 'utf8')
 

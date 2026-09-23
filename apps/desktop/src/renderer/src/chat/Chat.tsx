@@ -28,7 +28,13 @@ import { $interfaceLocale, t } from '../store/locale'
  * than a `ThreadListPrimitive`, because it carries session timing and export
  * that a thread list has no place for.
  */
-export function Chat({ onExit }: { onExit: () => void }): React.JSX.Element {
+export function Chat({
+  onExit,
+  sidebarHidden
+}: {
+  onExit: () => void
+  sidebarHidden: boolean
+}): React.JSX.Element {
   const interfaceLocale = useStore($interfaceLocale)
   const sessionMetrics = useStore($sessionMetrics)
   const chat = useChat()
@@ -60,6 +66,7 @@ export function Chat({ onExit }: { onExit: () => void }): React.JSX.Element {
   return (
     <AssistantRuntimeProvider runtime={runtime}>
       <Sessions
+        hidden={sidebarHidden}
         sessions={chat.threads}
         activeId={chat.activeThreadId}
         onSelect={(id) => void chat.selectThread(id)}

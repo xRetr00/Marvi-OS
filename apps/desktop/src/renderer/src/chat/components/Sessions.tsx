@@ -22,6 +22,7 @@ export function Sessions({
   onExit,
   onExport,
   exportDisabled,
+  hidden,
   timing
 }: {
   sessions: ChatThread[]
@@ -34,6 +35,7 @@ export function Sessions({
   onExit: () => void
   onExport: () => void
   exportDisabled: boolean
+  hidden: boolean
   timing: ReactNode
 }): React.JSX.Element {
   const locale = useStore($interfaceLocale)
@@ -136,7 +138,7 @@ export function Sessions({
   return (
     <TooltipProvider>
       <aside
-        className="chat-sessions"
+        className={`chat-sessions${hidden ? ' is-hidden' : ''}`}
         aria-label={t('Chat sessions', locale)}
         data-shell-context="sidebar"
       >

@@ -2031,6 +2031,38 @@ small,
   overflow: hidden;
 }
 
+.voice-page-disabled {
+  display: grid;
+  place-items: center;
+  padding: 32px;
+}
+
+.voice-disabled-card {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  max-width: 520px;
+  padding: 28px 32px;
+  border: 1px solid var(--ui-stroke-secondary);
+  background: var(--ui-bg-raised);
+  color: var(--ui-text-secondary);
+  text-align: center;
+}
+
+.voice-disabled-card strong {
+  color: var(--ui-text-primary);
+  font-size: 15px;
+}
+
+.voice-disabled-card span {
+  font-size: 11.5px;
+  line-height: 1.6;
+}
+
+.voice-hud-phase.phase-disabled {
+  color: var(--ui-text-secondary);
+}
+
 .voice-orb-surface {
   position: absolute;
   /* Stops short of the conversation bar rather than filling the page. */

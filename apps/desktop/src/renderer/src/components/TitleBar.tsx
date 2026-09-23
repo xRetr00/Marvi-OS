@@ -11,6 +11,7 @@ import { Tr } from '../store/locale'
 import { useEffect, useRef, useState } from 'react'
 import { haptic } from '../lib/haptics'
 import {
+  ArrowLeft,
   Gauge,
   Globe,
   Keyboard,
@@ -39,6 +40,7 @@ interface TitleBarProps {
   onRestart: () => void
   onShutdown: () => void
   onToggleSidebar?: () => void
+  onBackToMainMenu?: () => void
   sidebarCollapsed?: boolean
   /** Open or close the browser pane. Absent on pages that have no
    *  conversation to sit beside -- see `App`. */
@@ -52,6 +54,7 @@ export function TitleBar({
   browserOpen = false,
   hapticsMuted,
   onHotkeys,
+  onBackToMainMenu,
   onRestart,
   onSettings,
   onShutdown,
@@ -65,18 +68,36 @@ export function TitleBar({
     <header className="titlebar" data-shell-context="titlebar">
       <div className="titlebar-brand">
         {onToggleSidebar ? (
-          <UiTooltip label={t(sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar')} side="bottom">
+          <UiTooltip
+            label={t(
+              sidebarCollapsed && onBackToMainMenu
+                ? 'Back to main menu'
+                : sidebarCollapsed
+                  ? 'Show sidebar'
+                  : 'Hide sidebar'
+            )}
+            side="bottom"
+          >
             <button
-              aria-label={t(sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar')}
+              aria-label={t(
+                sidebarCollapsed && onBackToMainMenu
+                  ? 'Back to main menu'
+                  : sidebarCollapsed
+                    ? 'Show sidebar'
+                    : 'Hide sidebar'
+              )}
               aria-pressed={!sidebarCollapsed}
               className="titlebar-control titlebar-sidebar-toggle no-drag"
               onClick={() => {
                 haptic('selection')
-                onToggleSidebar()
+                if (sidebarCollapsed && onBackToMainMenu) onBackToMainMenu()
+                else onToggleSidebar()
               }}
               type="button"
             >
-              {sidebarCollapsed ? (
+              {sidebarCollapsed && onBackToMainMenu ? (
+                <ArrowLeft aria-hidden="true" />
+              ) : sidebarCollapsed ? (
                 <PanelLeftOpen aria-hidden="true" />
               ) : (
                 <PanelLeftClose aria-hidden="true" />
@@ -302,14 +323,14 @@ function LowResourceButton(): React.JSX.Element {
           <p>
             <Tr
               text={
-                'Marvi gets out of the way of whatever else is using this machine. She hands back the speech models she is holding on the graphics card, slows the room camera right down, and stops thinking out loud unless it matters.'
+                'Marvi gets out of the way of whatever else is using this machine. She stops LiveKit, the voice worker, wake listening, dictation, and speech models so voice holds no GPU and the smallest practical CPU and memory footprint.'
               }
             />
           </p>
           <p className="lowres-note">
             <Tr
               text={
-                'She still talks. Announcements keep working, so you hear anything worth hearing while you are busy.'
+                'Voice does not work in this mode. Voice controls stay disabled until low-resource mode is turned off.'
               }
             />
           </p>

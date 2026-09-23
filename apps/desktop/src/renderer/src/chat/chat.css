@@ -1801,6 +1801,13 @@
   animation: none;
 }
 
+.chat-sessions.is-hidden {
+  overflow: hidden;
+  padding: 0;
+  border-inline-end: 0;
+  visibility: hidden;
+}
+
 .chat-sidebar-head {
   display: flex;
   height: 46px;

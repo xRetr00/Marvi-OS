@@ -393,6 +393,7 @@ function MainSurface(): React.JSX.Element {
   const [hotkeysOpen, setHotkeysOpen] = useState(false)
   useEffect(() => window.marvi.onBrowserReveal?.(() => setBrowsing(true)), [])
   const [collapsed, setCollapsed] = useState(false)
+  const [chatSidebarHidden, setChatSidebarHidden] = useState(false)
   const [settings, setSettings] = useState<SettingsPage | null>(null)
   const [version, setVersion] = useState('0.1.0-dev.0')
   const [hapticsMuted, setHapticsMutedState] = useState(getHapticsMuted)
@@ -754,6 +755,7 @@ function MainSurface(): React.JSX.Element {
       <div className="app-shell">
         <TitleBar
           browserOpen={browsing}
+          onBackToMainMenu={page === 'Chat' ? () => navigate('Overview') : undefined}
           onHotkeys={() => setHotkeysOpen(true)}
           hapticsMuted={hapticsMuted}
           onRestart={() => void window.marvi?.restartAll()}
@@ -762,10 +764,12 @@ function MainSurface(): React.JSX.Element {
           onToggleBrowser={
             page === 'Voice' || page === 'Chat' ? () => setBrowsing((open) => !open) : undefined
           }
-          onToggleSidebar={page === 'Chat' ? undefined : toggleSidebar}
+          onToggleSidebar={
+            page === 'Chat' ? () => setChatSidebarHidden((hidden) => !hidden) : toggleSidebar
+          }
           onToggleHaptics={toggleHaptics}
           page={settings ?? page}
-          sidebarCollapsed={collapsed}
+          sidebarCollapsed={page === 'Chat' ? chatSidebarHidden : collapsed}
         />
 
         {/* The track width comes from the same state as the sidebar's. An
@@ -782,7 +786,7 @@ function MainSurface(): React.JSX.Element {
             // inside one of these. Wrapping them instead put the sidebar in
             // the 1fr and the conversation in the browser's column.
             gridTemplateColumns:
-              `${page === 'Chat' ? 248 : collapsed ? 52 : 212}px 1fr` +
+              `${page === 'Chat' ? (chatSidebarHidden ? 0 : 248) : collapsed ? 52 : 212}px 1fr` +
               (page === 'Chat' && browsing ? ' clamp(360px, 42%, 720px)' : '')
           }}
         >
@@ -792,7 +796,7 @@ function MainSurface(): React.JSX.Element {
             // Chat renders outside the shared scroll region, so the browser
             // dock has to exist here too rather than once for both.
             <div className={`chat-shell${browsing ? ' has-browser' : ''}`}>
-              <Chat onExit={() => navigate('Overview')} />
+              <Chat onExit={() => navigate('Overview')} sidebarHidden={chatSidebarHidden} />
               {browsing ? (
                 <aside className="browser-pane">
                   <BrowserPage onClose={() => setBrowsing(false)} />

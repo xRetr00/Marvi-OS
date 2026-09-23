@@ -150,6 +150,7 @@ describe('Sessions', () => {
         onExit={() => {}}
         onExport={() => {}}
         exportDisabled={false}
+        hidden={false}
         timing={<span>SESSION 00:12</span>}
       />
     )
@@ -188,6 +189,7 @@ describe('Sessions', () => {
         onExit={() => {}}
         onExport={() => {}}
         exportDisabled={false}
+        hidden={false}
         timing={null}
       />
     )

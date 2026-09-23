@@ -62,6 +62,23 @@ describe('TitleBar', () => {
     expect(html).toContain('class="titlebar"')
     expect(html).toContain('no-drag')
   })
+
+  it('uses the titlebar button to return to the main menu when Chat is hidden', () => {
+    const html = renderToStaticMarkup(
+      <TooltipProvider>
+        <TitleBar
+          {...lifecycleProps}
+          onBackToMainMenu={() => {}}
+          onSettings={() => {}}
+          onToggleSidebar={() => {}}
+          page="Chat"
+          sidebarCollapsed
+        />
+      </TooltipProvider>
+    )
+
+    expect(html).toContain('aria-label="Back to main menu"')
+  })
 })
 
 describe('ConnectingOverlay', () => {
