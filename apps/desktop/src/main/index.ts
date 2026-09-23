@@ -1077,8 +1077,10 @@ async function reconcileLowResourceServices(on: boolean): Promise<void> {
   if (lowResourceMode === on) return
   lowResourceMode = on
   if (on) {
-    supervisor?.stop('agent', 'disabled by low-resource mode')
-    supervisor?.stop('livekit', 'disabled by low-resource mode')
+    // This boundary is synchronous: returning from the transition with a
+    // speech child still resident would make the 0% GPU promise timing-based.
+    supervisor?.stopNow('agent', 'disabled by low-resource mode')
+    supervisor?.stopNow('livekit', 'disabled by low-resource mode')
     const wake = await wakeAutostart('suspend')
     resumeWakeAfterLowResource = wake.autostart
     desktop.info('low-resource mode disabled LiveKit, voice worker and wake listener')

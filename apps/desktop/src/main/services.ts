@@ -348,13 +348,16 @@ export class Service {
   }
 
   /** Synchronous, for `will-quit` where a promise will not be awaited. */
-  stopNow(): void {
+  stopNow(detail = 'stopped'): void {
     this.stopping = true
     if (this.timer) clearTimeout(this.timer)
     this.timer = null
     const pid = this.child?.pid
     this.child = null
     if (pid) killTree(pid, true)
+    this.state = 'stopped'
+    this.detail = detail
+    this.onChange()
   }
 
   alive(): boolean {
@@ -398,6 +401,13 @@ export class ServiceSupervisor {
     const service = this.services.get(name)
     if (!service) return false
     service.stop(detail)
+    return true
+  }
+
+  stopNow(name: string, detail = 'stopped'): boolean {
+    const service = this.services.get(name)
+    if (!service) return false
+    service.stopNow(detail)
     return true
   }
 

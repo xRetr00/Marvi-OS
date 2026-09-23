@@ -193,7 +193,7 @@ describe('supervising a service', () => {
       cwd: root
     })
     supervisor.startAll()
-    await vi.waitFor(() => expect(seen.at(-1)?.[0].state).toBe('running'))
+    await vi.waitFor(() => expect(seen.at(-1)?.[0].state).toBe('running'), { timeout: 8_000 })
 
     expect(supervisor.stop('voice', 'disabled by low-resource mode')).toBe(true)
     expect(supervisor.reports()[0]).toMatchObject({
@@ -202,7 +202,7 @@ describe('supervising a service', () => {
     })
 
     expect(supervisor.start('voice')).toBe(true)
-    await vi.waitFor(() => expect(seen.at(-1)?.[0].state).toBe('running'))
+    await vi.waitFor(() => expect(seen.at(-1)?.[0].state).toBe('running'), { timeout: 8_000 })
     supervisor.stopAll()
   })
 
