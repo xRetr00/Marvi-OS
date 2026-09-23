@@ -141,6 +141,29 @@ def test_the_reply_is_assembled_for_the_transcript(tmp_path) -> None:
     assert done["done"] is True
     assert done["reply"] == "The light is on."
     assert done["error"] == ""
+    assert done["tokens"] == 14
+    assert done["model"]
+
+
+def test_llama_cpp_reasoning_and_terminal_metadata_survive_chat(tmp_path, configured) -> None:
+    configured("llamacpp")
+    body = sse(
+        '{"choices":[{"delta":{"reasoning_content":"local thought"}}]}',
+        '{"choices":[{"delta":{"content":"Local answer."}}]}',
+        '{"usage":{"prompt_tokens":11,"completion_tokens":3}}',
+    )
+    chat = Chat(
+        store=ChatStore(tmp_path / "chat.sqlite3"),
+        client=ProviderClient(http=responder(body)),
+    )
+
+    events = list(chat.send_stream("hello", provider="llamacpp", model="qwen3"))
+
+    assert any(event.get("reasoning") == "local thought" for event in events)
+    done = events[-1]
+    assert done["provider"] == "llamacpp"
+    assert done["model"] == "qwen3"
+    assert done["tokens"] == 14
 
 
 def test_reasoning_is_a_separate_event_and_never_the_answer(tmp_path) -> None:

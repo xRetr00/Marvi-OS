@@ -1980,8 +1980,27 @@ class Chat:
                                 "error": "",
                             }
                             return
+                        if event.get("done"):
+                            if event.get("provider"):
+                                answered = str(event["provider"])
+                                answered_model = str(event.get("model") or answered_model)
+                                sample.provider = answered
+                            turn_usage = event.get("usage") or {}
+                            # Merged across tool rounds, not replaced.
+                            #
+                            # Input and cache describe the largest prompt in
+                            # the turn; output and billable count every round.
+                            round_billable = int(turn_usage.get("billable", 0))
+                            usage["output"] += int(turn_usage.get("output", 0))
+                            usage["billable"] += round_billable
+                            usage["input"] = max(usage["input"], int(turn_usage.get("input", 0)))
+                            usage["cached_input"] = max(
+                                usage["cached_input"], int(turn_usage.get("cached_input", 0))
+                            )
+                            tokens += round_billable
+                            continue
                         if event.get("provider"):
-                            answered = event["provider"]
+                            answered = str(event["provider"])
                             answered_model = str(event.get("model") or answered_model)
                             sample.provider = answered
                             continue
@@ -2030,29 +2049,6 @@ class Chat:
                         if event.get("tool_calls"):
                             calls = event["tool_calls"]
                             continue
-                        if event.get("done"):
-                            turn_usage = event.get("usage") or {}
-                            # Merged across tool rounds, not replaced.
-                            #
-                            # This used to rebuild the dict from the round that
-                            # had just finished, so a turn that called a tool
-                            # reported only its last round -- and a provider
-                            # that sent no usage on that round reported zero,
-                            # which is what put the context meter at 0%.
-                            #
-                            # Output and billable add up, because that is what
-                            # was spent. Input and cache do not: each round
-                            # re-sends the conversation, so the largest prompt
-                            # is how full the window actually got, and summing
-                            # them would count the same context several times.
-                            round_billable = int(turn_usage.get("billable", 0))
-                            usage["output"] += int(turn_usage.get("output", 0))
-                            usage["billable"] += round_billable
-                            usage["input"] = max(usage["input"], int(turn_usage.get("input", 0)))
-                            usage["cached_input"] = max(
-                                usage["cached_input"], int(turn_usage.get("cached_input", 0))
-                            )
-                            tokens += round_billable
             except ProviderCallError as exc:
                 logger.warning("streamed chat call failed: %s", exc)
                 yield {
@@ -2144,6 +2140,7 @@ class Chat:
                     "tools_used": used,
                     "tokens": tokens,
                     "provider": answered,
+                    "model": answered_model,
                     "error": "",
                 }
                 return
