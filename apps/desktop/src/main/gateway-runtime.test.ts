@@ -37,11 +37,17 @@ describe('normalizeRuntimeStatus', () => {
           low_resource: true,
           because: 'FC 26',
           app: 'FC26.exe',
-          automatic: true
+          automatic: true,
+          full_low_resource: true
         }
       })
     ).toMatchObject({
-      resources: { low_resource: true, because: 'FC 26', automatic: true }
+      resources: {
+        low_resource: true,
+        because: 'FC 26',
+        automatic: true,
+        full_low_resource: true
+      }
     })
   })
 

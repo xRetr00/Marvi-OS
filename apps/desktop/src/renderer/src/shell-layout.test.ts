@@ -338,6 +338,15 @@ describe('shell layout', () => {
     expect(preload).toContain("ipcRenderer.invoke('marvi:restart-all')")
     expect(preload).toContain("ipcRenderer.invoke('marvi:shutdown-all')")
   })
+
+  it('makes Smart Room and Vision shutdown an explicit low-resource opt-in', () => {
+    expect(titleBar).toContain('Fully low-resource')
+    expect(titleBar).toContain('shutdownRoom')
+    expect(titleBar).toContain(
+      'Smart Room and Vision are closed because fully low-resource mode is active.'
+    )
+    expect(preload).toContain("ipcRenderer.invoke('marvi:hold-resources', on, shutdownRoom)")
+  })
 })
 
 describe('what the shell claims about the devices', () => {

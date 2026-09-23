@@ -1223,7 +1223,14 @@ export const OFFLINE_RUNTIME: RuntimeStatus = {
   // here made an unreachable Marvi say "Say Marvi" and report VOICE READY in
   // the status bar. An assistant we cannot reach is in its error phase.
   model: { llm: '', stt: '', tts: '' },
-  resources: { low_resource: false, because: '', app: '', by_hand: false, automatic: false },
+  resources: {
+    low_resource: false,
+    because: '',
+    app: '',
+    by_hand: false,
+    automatic: false,
+    full_low_resource: false
+  },
   assistant: {
     ...DEFAULT_ASSISTANT_STATE,
     phase: 'error',

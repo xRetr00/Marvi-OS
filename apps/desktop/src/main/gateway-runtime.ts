@@ -188,7 +188,8 @@ export function normalizeRuntimeStatus(value: unknown): RuntimeStatus | null {
       because: typeof resources.because === 'string' ? resources.because : '',
       app: typeof resources.app === 'string' ? resources.app : '',
       by_hand: resources.by_hand === true,
-      automatic: resources.automatic === true
+      automatic: resources.automatic === true,
+      full_low_resource: resources.full_low_resource === true
     }
   }
 }

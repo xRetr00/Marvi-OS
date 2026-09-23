@@ -158,7 +158,9 @@ async def test_full_low_resource_stops_and_restores_the_smart_room_process(monke
     plugin = SimpleNamespace(
         name="smart_room",
         context=SimpleNamespace(
-            hooks={"on_gateway_stop": [stop], "on_gateway_start": [start]}
+            hooks={"on_gateway_stop": [stop], "on_gateway_start": [start]},
+            tools=[],
+            context_providers={},
         ),
         module=SimpleNamespace(
             process_manager=SimpleNamespace(
@@ -196,7 +198,9 @@ async def test_full_low_resource_refuses_to_claim_a_live_room_process(monkeypatc
     plugin = SimpleNamespace(
         name="smart_room",
         context=SimpleNamespace(
-            hooks={"on_gateway_stop": [lambda: None], "on_gateway_start": [lambda: None]}
+            hooks={"on_gateway_stop": [lambda: None], "on_gateway_start": [lambda: None]},
+            tools=[],
+            context_providers={},
         ),
         module=SimpleNamespace(
             process_manager=SimpleNamespace(status=lambda: {"alive": True, "pid": 4242})
