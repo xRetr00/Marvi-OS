@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -123,15 +123,20 @@ def header(console: Any, root: Path, section: str) -> None:
 
 
 @contextmanager
-def activity(console: Any, message: str) -> Iterator[None]:
+def activity(console: Any, message: str) -> Iterator[Callable[[str], None]]:
     """Show a left-to-right resolving Marvi status while an interactive task runs."""
     from rich.live import Live
 
     loading = TextLoading(message.upper(), monotonic())
     live = Live(loading, console=console, refresh_per_second=1 / LOADING_FRAME_SECONDS, transient=True)
     live.start()
+
+    def update(next_message: str) -> None:
+        loading.message = next_message.upper()
+        live.update(loading, refresh=True)
+
     try:
-        yield
+        yield update
     finally:
         from rich.text import Text
 

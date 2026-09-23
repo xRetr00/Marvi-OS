@@ -577,7 +577,11 @@ def _remove_environment(component: Component, repo_root: Path) -> Outcome:
     )
 
 
-def plan(components: list[Component], repo_root: Path | None = None) -> dict[str, Any]:
+def plan(
+    components: list[Component],
+    repo_root: Path | None = None,
+    progress: Callable[[str], None] | None = None,
+) -> dict[str, Any]:
     """What a setup run would do, before it does it.
 
     Size matters here: a first run that downloads several gigabytes without
@@ -590,7 +594,11 @@ def plan(components: list[Component], repo_root: Path | None = None) -> dict[str
     # The checks can touch model manifests and virtual environments. Keeping
     # two list comprehensions here made the interactive setup screen perform
     # the full scan twice while its loading indicator had no useful detail.
-    inspected = [(component, present(component)) for component in components]
+    inspected = []
+    for component in components:
+        if progress is not None:
+            progress(component.title)
+        inspected.append((component, present(component)))
     missing = [component for component, installed in inspected if not installed]
     return {
         "install": [

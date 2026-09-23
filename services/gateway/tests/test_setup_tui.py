@@ -262,14 +262,16 @@ def test_setup_plan_inspects_each_component_once(monkeypatch) -> None:
         SimpleNamespace(name="two", title="Two", why="", bytes_total=2, needed_for=()),
     ]
     calls: list[str] = []
+    progress: list[str] = []
 
     def state_of(component, _root):
         calls.append(component.name)
         return {"installed": component.name == "one"}
 
     monkeypatch.setattr(installer, "state_of", state_of)
-    result = installer.plan(components, object())
+    result = installer.plan(components, object(), progress=progress.append)
 
     assert calls == ["one", "two"]
+    assert progress == ["One", "Two"]
     assert result["already_installed"] == ["one"]
     assert [entry["name"] for entry in result["install"]] == ["two"]
