@@ -2,8 +2,9 @@ import type { ComponentType, ReactNode, SVGProps } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import { useStore } from '@nanostores/react'
 import { $interfaceLocale, t } from '../store/locale'
+import type { InterfaceLocale } from '../store/locale'
 
-function localized(node: ReactNode, locale: 'en' | 'ar'): ReactNode {
+function localized(node: ReactNode, locale: InterfaceLocale): ReactNode {
   return typeof node === 'string' ? t(node, locale) : node
 }
 

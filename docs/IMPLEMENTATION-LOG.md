@@ -1,5 +1,16 @@
 # Implementation Log
 
+## 2026-09-23 — Easy locale expansion
+
+- Generalized interface locale registration, persistence validation, native
+  language labels, and `Intl` number/date/currency/relative-time formatting.
+- Added English, German, Spanish, French, Italian, Portuguese, Dutch, Polish,
+  Turkish, Russian, Ukrainian, Hindi, Indonesian, Vietnamese, Swedish, Danish,
+  Norwegian, Finnish, Czech, Greek, and Romanian to the interface picker.
+- Arabic remains the only completed non-English catalogue; the new LTR locales
+  intentionally fall back to English until their translation catalogues are
+  reviewed. RTL/CJK languages remain outside this milestone.
+
 ## 2026-09-23 — Unbounded chat output and compact tool schemas
 
 - Chat no longer passes the provider's voice/auxiliary output reserve; for

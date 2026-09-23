@@ -3,13 +3,44 @@ import { atom } from 'nanostores'
 import { useStore } from '@nanostores/react'
 import { persistString, storedString } from '../lib/storage'
 
-export type InterfaceLocale = 'en' | 'ar'
+/** Supported UI locales. RTL/CJK languages remain separate typography passes. */
+export const INTERFACE_LOCALES = [
+  'en', 'ar', 'de', 'es', 'fr', 'it', 'pt', 'nl', 'pl', 'tr', 'ru', 'uk', 'hi',
+  'id', 'vi', 'sv', 'da', 'no', 'fi', 'cs', 'el', 'ro'
+] as const
+
+export type InterfaceLocale = (typeof INTERFACE_LOCALES)[number]
 export type InterfaceDirectionPreference = 'follow' | 'ltr' | 'rtl'
 const LOCALE_KEY = 'marvi.desktop.interface.locale.v1'
 const DIRECTION_KEY = 'marvi.desktop.interface.direction.v1'
 
+export const INTERFACE_LOCALE_LABELS: Record<InterfaceLocale, string> = {
+  en: 'English', ar: 'العربية', de: 'Deutsch', es: 'Español', fr: 'Français',
+  it: 'Italiano', pt: 'Português', nl: 'Nederlands', pl: 'Polski', tr: 'Türkçe',
+  ru: 'Русский', uk: 'Українська', hi: 'हिन्दी', id: 'Bahasa Indonesia',
+  vi: 'Tiếng Việt', sv: 'Svenska', da: 'Dansk', no: 'Norsk', fi: 'Suomi',
+  cs: 'Čeština', el: 'Ελληνικά', ro: 'Română'
+}
+
+const INTL_LOCALES: Record<InterfaceLocale, string> = {
+  en: 'en-US', ar: 'ar-EG', de: 'de-DE', es: 'es-ES', fr: 'fr-FR', it: 'it-IT',
+  pt: 'pt-PT', nl: 'nl-NL', pl: 'pl-PL', tr: 'tr-TR', ru: 'ru-RU', uk: 'uk-UA',
+  hi: 'hi-IN', id: 'id-ID', vi: 'vi-VN', sv: 'sv-SE', da: 'da-DK', no: 'nb-NO',
+  fi: 'fi-FI', cs: 'cs-CZ', el: 'el-GR', ro: 'ro-RO'
+}
+
+function isInterfaceLocale(value: string | null): value is InterfaceLocale {
+  return value !== null && (INTERFACE_LOCALES as readonly string[]).includes(value)
+}
+
+function intlLocale(locale: InterfaceLocale): string {
+  return INTL_LOCALES[locale]
+}
+
 export const $interfaceLocale = atom<InterfaceLocale>(
-  typeof window !== 'undefined' && storedString(LOCALE_KEY) === 'ar' ? 'ar' : 'en'
+  typeof window !== 'undefined' && isInterfaceLocale(storedString(LOCALE_KEY))
+    ? (storedString(LOCALE_KEY) as InterfaceLocale)
+    : 'en'
 )
 const storedDirection = typeof window !== 'undefined' ? storedString(DIRECTION_KEY) : null
 export const $interfaceDirection = atom<InterfaceDirectionPreference>(
@@ -25,7 +56,7 @@ export function setInterfaceDirection(direction: InterfaceDirectionPreference): 
 }
 
 export function syncLocaleStorage(key: string, value: string | null): boolean {
-  if (key === LOCALE_KEY && (value === 'en' || value === 'ar')) {
+  if (key === LOCALE_KEY && isInterfaceLocale(value)) {
     $interfaceLocale.set(value)
     return true
   }
@@ -57,8 +88,12 @@ export function applyInterfaceLocale(
 // English is the lookup key and the visible fallback while the catalogue grows.
 export const arabic: Record<string, string> = arabicCatalogue
 
+const catalogues: Partial<Record<InterfaceLocale, Record<string, string>>> = {
+  ar: arabicCatalogue
+}
+
 export function t(message: string, locale = $interfaceLocale.get()): string {
-  return locale === 'ar' ? (arabic[message] ?? message) : message
+  return catalogues[locale]?.[message] ?? message
 }
 
 /** Reactive text for literal JSX labels, including in the separate Island renderer. */
@@ -76,7 +111,7 @@ export function Tr({
 }
 
 export function formatNumber(value: number, locale = $interfaceLocale.get()): string {
-  return new Intl.NumberFormat(locale === 'ar' ? 'ar-EG' : 'en-US').format(value)
+  return new Intl.NumberFormat(intlLocale(locale)).format(value)
 }
 
 export function formatDecimal(
@@ -84,7 +119,7 @@ export function formatDecimal(
   fractionDigits: number,
   locale = $interfaceLocale.get()
 ): string {
-  return new Intl.NumberFormat(locale === 'ar' ? 'ar-EG' : 'en-US', {
+  return new Intl.NumberFormat(intlLocale(locale), {
     minimumFractionDigits: fractionDigits,
     maximumFractionDigits: fractionDigits
   }).format(value)
@@ -95,7 +130,7 @@ export function formatCurrency(
   currency = 'USD',
   locale = $interfaceLocale.get()
 ): string {
-  return new Intl.NumberFormat(locale === 'ar' ? 'ar-EG' : 'en-US', {
+  return new Intl.NumberFormat(intlLocale(locale), {
     style: 'currency',
     currency
   }).format(value)
@@ -117,7 +152,7 @@ export function formatDate(
   options: Intl.DateTimeFormatOptions,
   locale = $interfaceLocale.get()
 ): string {
-  return new Intl.DateTimeFormat(locale === 'ar' ? 'ar-EG' : 'en-US', options).format(value)
+  return new Intl.DateTimeFormat(intlLocale(locale), options).format(value)
 }
 
 export function formatRelative(
@@ -125,7 +160,7 @@ export function formatRelative(
   unit: Intl.RelativeTimeFormatUnit,
   locale = $interfaceLocale.get()
 ): string {
-  return new Intl.RelativeTimeFormat(locale === 'ar' ? 'ar-EG' : 'en-US', {
+  return new Intl.RelativeTimeFormat(intlLocale(locale), {
     numeric: 'auto'
   }).format(value, unit)
 }

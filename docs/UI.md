@@ -1,7 +1,10 @@
 # UI Contract
 
 The control center offers independent language and layout-direction settings in
-Preferences. Direction defaults to Follow language, so Arabic keeps the fully
+Preferences. Arabic is the first completed non-English catalogue; the supported
+LTR locale set is exposed through the same picker and falls back safely to
+English where a translation is not yet present. Direction defaults to Follow
+language, so Arabic keeps the fully
 mirrored RTL interface and English stays LTR. Explicit RTL or LTR overrides the
 shell direction without changing the language. In Arabic with an LTR shell,
 prose blocks keep RTL paragraph direction and Chat inputs use automatic text

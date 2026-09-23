@@ -45,7 +45,7 @@ describe('interface locale', () => {
 
   it('accepts only persisted interface locales and falls back to English', () => {
     expect(syncLocaleStorage('wrong', 'ar')).toBe(false)
-    expect(syncLocaleStorage('marvi.desktop.interface.locale.v1', 'fr')).toBe(false)
+    expect(syncLocaleStorage('marvi.desktop.interface.locale.v1', 'fr')).toBe(true)
     expect(syncLocaleStorage('marvi.desktop.interface.locale.v1', 'ar')).toBe(true)
     expect(syncLocaleStorage('marvi.desktop.interface.direction.v1', 'ltr')).toBe(true)
     expect(t('Chat')).toBe('الدردشة')
@@ -60,6 +60,14 @@ describe('interface locale', () => {
     expect(formatRelative(-2, 'day', 'ar')).toBe('أول أمس')
     expect(formatDecimal(1.5, 1, 'ar')).toContain('١')
     expect(interpolate('{count} learned', { count: 12 }, 'ar')).toBe('تعلّم ١٢')
+  })
+
+  it('accepts easy LTR locales and uses their regional Intl formatting', () => {
+    expect(syncLocaleStorage('marvi.desktop.interface.locale.v1', 'de')).toBe(true)
+    expect(formatNumber(1234, 'de')).toContain('.')
+    expect(syncLocaleStorage('marvi.desktop.interface.locale.v1', 'hi')).toBe(true)
+    expect(formatNumber(1234, 'hi')).toContain('1')
+    expect(syncLocaleStorage('marvi.desktop.interface.locale.v1', 'ja')).toBe(false)
   })
 
   it('renders extracted labels in Arabic while preserving inline spacing', () => {

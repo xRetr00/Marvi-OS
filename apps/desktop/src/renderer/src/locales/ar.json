@@ -1098,5 +1098,17 @@
   "Voice not working in low-resource mode": "الصوت لا يعمل في وضع الموارد المنخفضة",
   "Turn off low-resource mode to restore LiveKit, speech and microphone controls.": "أوقف وضع الموارد المنخفضة لاستعادة LiveKit والكلام وعناصر تحكم الميكروفون.",
   "Voice does not work in this mode. Voice controls stay disabled until low-resource mode is turned off.": "لا يعمل الصوت في هذا الوضع. تظل عناصر التحكم الصوتية معطلة حتى إيقاف وضع الموارد المنخفضة.",
-  "Marvi gets out of the way of whatever else is using this machine. She stops LiveKit, the voice worker, wake listening, dictation, and speech models so voice holds no GPU and the smallest practical CPU and memory footprint.": "تفسح Marvi موارد الجهاز للمهام الأخرى. توقف LiveKit وعامل الصوت والاستماع لكلمة التنبيه والإملاء ونماذج الكلام، فلا يستخدم الصوت معالج الرسومات ويستهلك أقل قدر عملي من المعالج والذاكرة."
+  "Marvi gets out of the way of whatever else is using this machine. She stops LiveKit, the voice worker, wake listening, dictation, and speech models so voice holds no GPU and the smallest practical CPU and memory footprint.": "تفسح Marvi موارد الجهاز للمهام الأخرى. توقف LiveKit وعامل الصوت والاستماع لكلمة التنبيه والإملاء ونماذج الكلام، فلا يستخدم الصوت معالج الرسومات ويستهلك أقل قدر عملي من المعالج والذاكرة.",
+  "Built-in": "مدمج",
+  "Choose how Marvi reads pages, exposes tools, and protects tool actions.": "اختر كيف تقرأ Marvi الصفحات وتعرض الأدوات وتحمي إجراءات الأدوات.",
+  "Deferred Marvi tools": "أدوات Marvi المؤجلة",
+  "Jina Reader · hosted": "Jina Reader · مستضاف",
+  "Keeps every Marvi tool callable while publishing shorter schemas for less-used tools. Voice and chat use the same setting.": "يبقي كل أدوات Marvi قابلة للاستدعاء مع نشر مخططات أقصر للأدوات الأقل استخدامًا. يستخدم الصوت والدردشة الإعداد نفسه.",
+  "Marvi OS tools": "أدوات Marvi OS",
+  "Page reader": "قارئ الصفحات",
+  "Tool execution": "تنفيذ الأدوات",
+  "Tools": "الأدوات",
+  "Trafilatura fetches and extracts locally. Jina Reader sends the URL to its hosted service. Built-in keeps the plain HTML reader.": "تجلب Trafilatura المحتوى وتستخرجه محليًا. يرسل Jina Reader الرابط إلى خدمته المستضافة. يحافظ الخيار المدمج على قارئ HTML البسيط.",
+  "Trafilatura · local": "Trafilatura · محلي",
+  "Web content": "محتوى الويب"
 }

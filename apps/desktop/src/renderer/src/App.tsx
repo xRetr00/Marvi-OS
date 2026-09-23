@@ -139,7 +139,7 @@ import {
 } from './components/capabilities/capability-library'
 import { ContextStatus } from './chat/components/ContextStatus'
 import { $chatContextStatus } from './store/chat-context'
-import { $interfaceDirection, $interfaceLocale, formatDate, interpolate, setInterfaceDirection, setInterfaceLocale, t } from './store/locale'
+import { $interfaceDirection, $interfaceLocale, INTERFACE_LOCALE_LABELS, INTERFACE_LOCALES, formatDate, interpolate, setInterfaceDirection, setInterfaceLocale, t } from './store/locale'
 import { gatewayCopy } from './store/gateway-copy'
 import { $recognisers, chooseRecogniser, refreshRecognisers } from './store/recognisers'
 
@@ -6992,12 +6992,16 @@ function PreferencesPanel({
           )}
           action={
             <Picker
-              options={[
-                { value: 'en', label: 'English' },
-                { value: 'ar', label: 'العربية' }
-              ]}
+              options={INTERFACE_LOCALES.map((locale) => ({
+                value: locale,
+                label: INTERFACE_LOCALE_LABELS[locale]
+              }))}
               value={interfaceLocale}
-              onChange={(next) => setInterfaceLocale(next === 'ar' ? 'ar' : 'en')}
+              onChange={(next) => {
+                if ((INTERFACE_LOCALES as readonly string[]).includes(next)) {
+                  setInterfaceLocale(next as (typeof INTERFACE_LOCALES)[number])
+                }
+              }}
             />
           }
         />
