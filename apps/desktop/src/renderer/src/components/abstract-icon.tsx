@@ -44,6 +44,7 @@ import {
   TimerReset,
   UserRoundPlus,
   Volume2,
+  Wrench,
   X,
   type LucideIcon,
   type LucideProps
@@ -64,6 +65,7 @@ export type AbstractIconName =
   | 'accounts'
   | 'skills'
   | 'plugins'
+  | 'tools'
   | 'connectors'
   | 'channels'
   | 'mcp'
@@ -118,6 +120,7 @@ export const ABSTRACT_ICONS: Readonly<Record<AbstractIconName, LucideIcon>> = Ob
   accounts: UserRoundPlus,
   skills: Braces,
   plugins: Blocks,
+  tools: Wrench,
   connectors: Link2,
   channels: Send,
   mcp: ServerCog,

@@ -143,7 +143,7 @@ be able to switch proactivity off by accident, or leave the budget uncapped.
 | Variable | Default | Meaning |
 |---|---|---|
 | `MARVI_PRIVACY_MODE` | off | one switch: refuses every tool that reaches the network (web, accounts, calendar, email, Telegram), keeps the Telegram bridge disconnected, forces the local memory store, skips update checks, and implies `MARVI_LOCAL_ONLY`. Editable in Settings > Preferences; your own MCP servers are not gated |
-| `MARVI_WEB_FETCHER` | `builtin` | page reader for `web_extract`: `builtin`, `trafilatura` (local extraction after Marvi's bounded fetch), or `jina` (hosted Jina Reader). Editable in Settings > Preferences |
+| `MARVI_WEB_FETCHER` | `builtin` | page reader for `web_extract`: `builtin`, `trafilatura` (local extraction after Marvi's bounded fetch), or `jina` (hosted Jina Reader). Editable in Settings > Tools |
 | `JINA_API_KEY` | unset | optional API key sent to hosted Jina Reader when `MARVI_WEB_FETCHER=jina` |
 | `MARVI_LOCAL_ONLY` | off | every model call must go to a local provider (Ollama, LM Studio, llama.cpp); cloud providers are refused. Model calls only |
 | `MARVI_SANDBOX_APPCONTAINER` | on | run `code_run` inside a Windows AppContainer, where the kernel refuses every file outside its scratch directory and the firewall drops every connection. Off falls back to the Job Object's time, memory and process limits alone, and the tool's result says which one ran. It also falls back by itself, with a reason, when the interpreter is one an ordinary user cannot grant the container access to |

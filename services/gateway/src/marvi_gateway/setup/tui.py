@@ -91,6 +91,19 @@ CAPABILITIES: tuple[Capability, ...] = (
                 "Hosted search. Free tier is enough for personal use.",
                 secret=True,
             ),
+            Setting(
+                "MARVI_WEB_FETCHER",
+                "Page reader",
+                "Built-in HTML, local Trafilatura, or hosted Jina Reader for web_extract.",
+                choices=("builtin", "trafilatura", "jina"),
+                default="builtin",
+            ),
+            Setting(
+                "JINA_API_KEY",
+                "Jina Reader API key",
+                "Optional. Leave empty to use Jina Reader's unauthenticated hosted access.",
+                secret=True,
+            ),
         ),
     ),
     Capability(
@@ -207,7 +220,14 @@ def _ready(capability: Capability) -> bool:
         from ..computer import binary_path
         if not binary_path().is_file():
             return False
-    present = [_satisfied(s) for s in capability.settings]
+    present = [
+        _satisfied(s)
+        for s in capability.settings
+        # A selected reader is useful with web_extract, but it is not a web
+        # search backend and must not make the whole web capability appear
+        # ready by itself.
+        if s.name not in {"MARVI_WEB_FETCHER", "JINA_API_KEY"}
+    ]
     return any(present) if capability.any_of else all(present)
 
 

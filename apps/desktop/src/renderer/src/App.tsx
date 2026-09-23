@@ -278,11 +278,11 @@ const SETTINGS_APPEARANCE_PAGES = [
 const SETTINGS_GROUPS = [
   {
     gapBefore: false,
-    items: ['Providers', 'Models', 'Usage', 'Memory', 'Plugins']
+    items: ['Providers', 'Models', 'Usage', 'Memory', 'Tools', 'Plugins']
   },
   {
     gapBefore: true,
-    items: ['Voice', 'Workspace', 'Appearance', 'Preferences', 'About']
+    items: ['Voice', 'Appearance', 'Preferences', 'About']
   }
 ] as const
 
@@ -339,12 +339,12 @@ const SETTINGS_ICONS: Record<SettingsPage | 'Voice' | 'Appearance', AbstractIcon
   Models: 'models',
   Usage: 'activity',
   Memory: 'memory',
+  Tools: 'tools',
   Plugins: 'plugins',
   Voice: 'voice',
   'Speech recognition': 'microphone',
   'Voice synthesis': 'speaker',
   'Wake word': 'voice',
-  Workspace: 'archive',
   Appearance: 'preferences',
   Themes: 'preferences',
   Fonts: 'preferences',
@@ -5529,8 +5529,8 @@ function SettingsShell({
               <WakeWordPanel />
             ) : page === 'Memory' ? (
               <MemorySettingsPanel />
-            ) : page === 'Workspace' ? (
-              <WorkspacePanel />
+            ) : page === 'Tools' ? (
+              <ToolsPanel runtime={runtime} />
             ) : page === 'Themes' ? (
               <AppearancePanel section="themes" />
             ) : page === 'Fonts' ? (
@@ -6101,7 +6101,7 @@ function RecognitionSettings(): React.JSX.Element {
  * invisible entries in it is one nobody can reason about, and the first time
  * an invisible entry bites it reads as a bug rather than as a rule.
  */
-function WorkspacePanel(): React.JSX.Element {
+function WorkspacePanel({ embedded = false }: { embedded?: boolean } = {}): React.JSX.Element {
   const [policy, setPolicy] = useState<WorkspacePolicy | null>(null)
   const [error, setError] = useState('')
   const [adding, setAdding] = useState('')
@@ -6140,12 +6140,8 @@ function WorkspacePanel(): React.JSX.Element {
     }
   ]
 
-  return (
-    <ControlPage
-      className="settings-page"
-      description={t('Which folders the file tools may touch, and what is refused to all of them.')}
-      title={t('Workspace')}
-    >
+  const content = (
+    <>
       <ControlSection
         description={t('Where a path without a drive letter means. Marvi works here by default.')}
         icon={FolderOpen}
@@ -6324,6 +6320,17 @@ function WorkspacePanel(): React.JSX.Element {
       </ControlSection>
 
       {error ? <p className="control-note is-danger">{error}</p> : null}
+    </>
+  )
+  return embedded ? (
+    content
+  ) : (
+    <ControlPage
+      className="settings-page"
+      description={t('Which folders the file tools may touch, and what is refused to all of them.')}
+      title={t('Workspace')}
+    >
+      {content}
     </ControlPage>
   )
 }
@@ -6851,6 +6858,108 @@ function AppearanceChoices({
   )
 }
 
+function ToolsPanel({ runtime }: { runtime: RuntimeStatus }): React.JSX.Element {
+  const interfaceLocale = useStore($interfaceLocale)
+  const [deferredTools, setDeferredTools] = useState(false)
+  const [webFetcher, setWebFetcher] = useState('builtin')
+
+  useEffect(() => {
+    let gone = false
+    void window.marvi?.getProviders().then((page) => {
+      if (gone) return
+      setDeferredTools(page?.settings?.MARVI_DEFER_TOOLS === 'lazy')
+      const selected = page?.settings?.MARVI_WEB_FETCHER
+      setWebFetcher(selected === 'trafilatura' || selected === 'jina' ? selected : 'builtin')
+    })
+    return () => {
+      gone = true
+    }
+  }, [])
+
+  const setYolo = (enabled: boolean): void => {
+    void window.marvi?.setYolo(enabled).then(applyRuntimeState)
+  }
+
+  return (
+    <ControlPage
+      aria-label={t('Marvi OS tools', interfaceLocale)}
+      className="settings-page"
+      description={t('Choose how Marvi reads pages, exposes tools, and protects tool actions.', interfaceLocale)}
+      title={t('Tools', interfaceLocale)}
+    >
+      <ControlSection icon={Globe} title={t('Web content', interfaceLocale)}>
+        <ControlRow
+          action={
+            <Picker
+              options={[
+                { value: 'builtin', label: t('Built-in', interfaceLocale) },
+                { value: 'trafilatura', label: t('Trafilatura · local', interfaceLocale) },
+                { value: 'jina', label: t('Jina Reader · hosted', interfaceLocale) }
+              ]}
+              value={webFetcher}
+              onChange={(next) => {
+                const selected = next === 'trafilatura' || next === 'jina' ? next : 'builtin'
+                setWebFetcher(selected)
+                void window.marvi?.setProviderSettings({ MARVI_WEB_FETCHER: selected })
+              }}
+            />
+          }
+          description={t(
+            'Trafilatura fetches and extracts locally. Jina Reader sends the URL to its hosted service. Built-in keeps the plain HTML reader.',
+            interfaceLocale
+          )}
+          title={t('Page reader', interfaceLocale)}
+        />
+      </ControlSection>
+
+      <ControlSection icon={ShieldAlert} title={t('Tool execution', interfaceLocale)}>
+        <ControlRow
+          action={
+            <button
+              aria-checked={runtime.assistant.yolo}
+              className={runtime.assistant.yolo ? 'mode-switch active' : 'mode-switch'}
+              onClick={() => setYolo(!runtime.assistant.yolo)}
+              role="switch"
+              type="button"
+            >
+              {t(runtime.assistant.yolo ? 'YOLO · auto accept' : 'Confirm · ask me', interfaceLocale)}
+            </button>
+          }
+          description={t(
+            'Confirm asks before actions when the model decides approval is needed. YOLO bypasses every prompt.',
+            interfaceLocale
+          )}
+          title={t('Action approval', interfaceLocale)}
+        />
+        <ControlRow
+          action={
+            <button
+              aria-checked={deferredTools}
+              className={deferredTools ? 'mode-switch active' : 'mode-switch'}
+              onClick={() => {
+                const next = !deferredTools
+                setDeferredTools(next)
+                void window.marvi?.setProviderSettings({ MARVI_DEFER_TOOLS: next ? 'lazy' : '' })
+              }}
+              role="switch"
+              type="button"
+            >
+              {t(deferredTools ? 'On · compact tools' : 'Off · full tools', interfaceLocale)}
+            </button>
+          }
+          description={t(
+            'Keeps every Marvi tool callable while publishing shorter schemas for less-used tools. Voice and chat use the same setting.',
+            interfaceLocale
+          )}
+          title={t('Deferred Marvi tools', interfaceLocale)}
+        />
+      </ControlSection>
+
+      <WorkspacePanel embedded />
+    </ControlPage>
+  )
+}
+
 function PreferencesPanel({
   runtime,
   onHotkeys
@@ -6860,24 +6969,6 @@ function PreferencesPanel({
 }): React.JSX.Element {
   const interfaceLocale = useStore($interfaceLocale)
   const interfaceDirection = useStore($interfaceDirection)
-  const [deferredTools, setDeferredTools] = useState(false)
-  const [webFetcher, setWebFetcher] = useState('builtin')
-  useEffect(() => {
-    let gone = false
-    void window.marvi?.getProviders().then((page) => {
-      if (!gone) {
-        setDeferredTools(page?.settings?.MARVI_DEFER_TOOLS === 'lazy')
-        const selected = page?.settings?.MARVI_WEB_FETCHER
-        setWebFetcher(selected === 'trafilatura' || selected === 'jina' ? selected : 'builtin')
-      }
-    })
-    return () => {
-      gone = true
-    }
-  }, [])
-  const setYolo = (enabled: boolean): void => {
-    void window.marvi?.setYolo(enabled).then(applyRuntimeState)
-  }
   const setPrivacy = (enabled: boolean): void => {
     void window.marvi?.setPrivacy(enabled).then(applyRuntimeState)
   }
@@ -6955,82 +7046,6 @@ function PreferencesPanel({
             interfaceLocale
           )}
           title={t('Global shortcuts')}
-        />
-      </ControlSection>
-
-      <ControlSection icon={ShieldAlert} title={t('Confirmation mode')}>
-        <ControlRow
-          action={
-            <button
-              aria-checked={runtime.assistant.yolo}
-              className={runtime.assistant.yolo ? 'mode-switch active' : 'mode-switch'}
-              onClick={() => setYolo(!runtime.assistant.yolo)}
-              role="switch"
-              type="button"
-            >
-              {t(
-                runtime.assistant.yolo ? 'YOLO · auto accept' : 'Confirm · ask me',
-                interfaceLocale
-              )}
-            </button>
-          }
-          description={t(
-            'Confirm asks before actions when the model decides approval is needed. YOLO bypasses every prompt.',
-            interfaceLocale
-          )}
-          title={t('Action approval')}
-        />
-      </ControlSection>
-
-      <ControlSection icon={Gauge} title={t('Model context', interfaceLocale)}>
-        <ControlRow
-          action={
-            <button
-              aria-checked={deferredTools}
-              className={deferredTools ? 'mode-switch active' : 'mode-switch'}
-              onClick={() => {
-                const next = !deferredTools
-                setDeferredTools(next)
-                void window.marvi?.setProviderSettings({
-                  MARVI_DEFER_TOOLS: next ? 'lazy' : ''
-                })
-              }}
-              role="switch"
-              type="button"
-            >
-              {t(deferredTools ? 'On · compact tools' : 'Off · full tools', interfaceLocale)}
-            </button>
-          }
-          description={t(
-            'Keeps every Marvi tool callable while publishing shorter schemas for less-used tools. This reduces the prompt prefix and helps llama.cpp reuse its KV cache. Voice and chat use the same setting.',
-            interfaceLocale
-          )}
-          title={t('Deferred Marvi tools', interfaceLocale)}
-        />
-      </ControlSection>
-
-      <ControlSection icon={Globe} title={t('Web content', interfaceLocale)}>
-        <ControlRow
-          action={
-            <Picker
-              options={[
-                { value: 'builtin', label: t('Built-in', interfaceLocale) },
-                { value: 'trafilatura', label: t('Trafilatura · local', interfaceLocale) },
-                { value: 'jina', label: t('Jina Reader · hosted', interfaceLocale) }
-              ]}
-              value={webFetcher}
-              onChange={(next) => {
-                const selected = next === 'trafilatura' || next === 'jina' ? next : 'builtin'
-                setWebFetcher(selected)
-                void window.marvi?.setProviderSettings({ MARVI_WEB_FETCHER: selected })
-              }}
-            />
-          }
-          description={t(
-            'Choose how web pages are turned into readable text. Trafilatura fetches and extracts locally; Jina Reader sends the URL to its hosted service. Built-in keeps the current plain HTML reader.',
-            interfaceLocale
-          )}
-          title={t('Page reader', interfaceLocale)}
         />
       </ControlSection>
 
