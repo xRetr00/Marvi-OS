@@ -334,6 +334,10 @@ class Focus:
         #: export, a compile, a model being trained in a terminal. Rather than
         #: guess at a longer list of things Marvi cannot see, let it be said.
         self._by_hand: bool = False
+        #: The manual hold may additionally suspend Smart Room's owned runtime.
+        #: This is deliberately never inferred from automatic game detection:
+        #: stopping room automations and vision is a separate, explicit choice.
+        self._full_by_hand: bool = False
 
     # -- what everything else asks -------------------------------------------
 
@@ -350,7 +354,7 @@ class Focus:
                 return pretty(self._heavy)
             return "you asked" if self._by_hand else ""
 
-    def hold(self, on: bool) -> dict[str, Any]:
+    def hold(self, on: bool, *, shutdown_room: bool = False) -> dict[str, Any]:
         """Turn low-resource mode on or off by hand.
 
         The manual hold does not fight the automatic one: while a game is
@@ -360,6 +364,7 @@ class Focus:
         """
         with self._lock:
             self._by_hand = bool(on)
+            self._full_by_hand = bool(on and shutdown_room)
         log.info("low-resource mode held %s by hand", "on" if on else "off")
         return self.as_dict()
 
@@ -367,6 +372,7 @@ class Focus:
         with self._lock:
             heavy = self._heavy
             by_hand = self._by_hand
+            full_by_hand = self._full_by_hand
         return {
             "low_resource": bool(heavy) or by_hand,
             "because": pretty(heavy) if heavy else ("you asked" if by_hand else ""),
@@ -376,6 +382,7 @@ class Focus:
             #: switched off mid-match.
             "by_hand": by_hand,
             "automatic": bool(heavy),
+            "full_low_resource": by_hand and full_by_hand,
         }
 
     # -- the scheduled look --------------------------------------------------

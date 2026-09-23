@@ -313,6 +313,8 @@ export interface ResourceState {
   by_hand?: boolean
   /** The watcher has it on regardless -- so the hand switch cannot clear it. */
   automatic?: boolean
+  /** Explicit tier that also terminates Smart Room and its vision runtime. */
+  full_low_resource?: boolean
 }
 
 /** Who Marvi can be, and who she is being. See `personas.py`. */

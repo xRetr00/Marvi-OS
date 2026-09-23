@@ -188,6 +188,9 @@ class ResourceMode(BaseModel):
     app: str = ""
     by_hand: bool = False
     automatic: bool = False
+    #: Explicit manual tier which also stops the Smart Room process, including
+    #: its camera and loaded vision models. Automatic low-resource never sets it.
+    full_low_resource: bool = False
 
 
 class RuntimeStatus(BaseModel):
