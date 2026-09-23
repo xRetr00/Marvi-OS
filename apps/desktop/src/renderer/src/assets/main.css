@@ -1285,6 +1285,51 @@ html[dir='rtl'] .nav-item.active {
   background: var(--ui-stroke-tertiary);
 }
 
+.lowres-full-option {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  margin: 10px 0;
+  padding: 9px 10px;
+  border: 1px solid var(--ui-stroke-secondary);
+  border-radius: 8px;
+  color: var(--ui-text-primary);
+  cursor: pointer;
+}
+
+.lowres-full-option input {
+  margin: 2px 0 0;
+  accent-color: var(--ui-accent, #7dd3fc);
+}
+
+.lowres-full-option span,
+.lowres-full-option small {
+  display: block;
+}
+
+.lowres-full-option strong {
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.lowres-full-option small {
+  margin-top: 3px;
+  color: var(--ui-text-secondary);
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+
+.lowres-full-option:has(input:disabled) {
+  cursor: default;
+  opacity: 0.8;
+}
+
+.lowres-closed {
+  padding: 8px 10px;
+  border-inline-start: 2px solid var(--ui-accent, #7dd3fc);
+  color: var(--ui-text-primary) !important;
+}
+
 .lowres-switch {
   width: 100%;
   padding: 7px 10px;

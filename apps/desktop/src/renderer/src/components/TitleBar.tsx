@@ -238,6 +238,7 @@ function LowResourceButton(): React.JSX.Element {
   const [state, setState] = useState<ResourceState | null>(null)
   const [explaining, setExplaining] = useState(false)
   const [working, setWorking] = useState(false)
+  const [shutdownRoom, setShutdownRoom] = useState(false)
   const card = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -276,11 +277,12 @@ function LowResourceButton(): React.JSX.Element {
   const on = Boolean(state?.low_resource)
   const automatic = Boolean(state?.automatic)
   const byHand = Boolean(state?.by_hand)
+  const full = Boolean(state?.full_low_resource)
 
   const toggle = async (): Promise<void> => {
     setWorking(true)
     haptic(byHand ? 'selection' : 'warning')
-    const next = await window.marvi?.holdResources(!byHand)
+    const next = await window.marvi?.holdResources(!byHand, !byHand && shutdownRoom)
     if (next) setState(next)
     setWorking(false)
   }
@@ -328,6 +330,26 @@ function LowResourceButton(): React.JSX.Element {
               }
             />
           </p>
+          <label className={`lowres-full-option${full ? ' is-active' : ''}`}>
+            <input
+              checked={full || shutdownRoom}
+              disabled={byHand || working}
+              onChange={(event) => setShutdownRoom(event.target.checked)}
+              type="checkbox"
+            />
+            <span>
+              <strong>Fully low-resource</strong>
+              <small>
+                Also shut down the Smart Room process, camera, and vision models. Room
+                automations and vision will not work until this mode is turned off.
+              </small>
+            </span>
+          </label>
+          {full ? (
+            <p className="lowres-closed" role="status">
+              Smart Room and Vision are closed because fully low-resource mode is active.
+            </p>
+          ) : null}
           <p className="lowres-why">
             {automatic
               ? `On automatically — ${state?.because} has the machine. It goes off on its own when that closes.`
