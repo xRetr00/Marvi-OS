@@ -52,7 +52,7 @@ formats are locale-aware. Focused behavior tests and desktop typecheck passed on
 Evidence: Chromium renderer captures at 1440×1000 cover the RTL control center,
 Preferences, and Chat, plus the 640×320 confirmation Island. They are stored in
 `docs/evidence/arabic-rtl-*.png`. Desktop typecheck and production renderer
-build passed; all 615 desktop tests passed after retrying one Windows process
+build passed; all 616 desktop tests passed after retrying one Windows process
 ownership timeout, and 52 Gateway remembering tests passed on 2026-09-23.
 
 ## Milestone 5 — Independent layout direction
@@ -64,3 +64,7 @@ ownership timeout, and 52 Gateway remembering tests passed on 2026-09-23.
 - [x] Keep Arabic prose RTL and technical runs isolated when Arabic uses an LTR
       shell.
 - [x] Add behavior coverage and capture the Arabic LTR shell for review.
+
+Evidence: `docs/evidence/arabic-ltr-shell.png` shows the sidebar and shell kept
+LTR while Arabic cards, headings, and mixed `openai/gpt-5.4` prose remain
+correctly directed. The default RTL captures remain alongside it.
