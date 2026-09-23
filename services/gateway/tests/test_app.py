@@ -19,6 +19,9 @@ class FakeOneShot:
         self.calls.append((text, purpose))
         return {"played": True, "cancelled": False, "seconds": 0.25}
 
+    def synthesize(self, _text: str) -> tuple[bytes, int]:
+        return b"", 24_000
+
     def stop(self) -> bool:
         self.stopped = True
         return True
