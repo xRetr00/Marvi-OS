@@ -218,6 +218,15 @@ them when the mode ends. The Voice page is replaced by a single disabled-state
 message and Chat's microphone control is disabled with the same accessible
 explanation. Gateway, Chat, and non-voice work remain available.
 
+**Step 12 — opt-in full low-resource process boundary. Done.** Manual
+activation can additionally stop Smart Room and Vision. Gateway crosses the
+plugin's owner lifecycle rather than dropping the RPC connection; the plugin
+stops its restart supervisor, requests graceful shutdown, force-kills the owned
+Windows process tree after the deadline, and verifies the PID is dead. Gateway
+rolls the selection back and returns a visible error if that postcondition is
+not met. Turning the mode off restarts the plugin from saved configuration.
+Automatic game detection retains the lighter room pacing behavior.
+
 ## Acceptance evidence
 
 - Each of the three original failures — `uv` missing, port taken, broken imports

@@ -335,8 +335,19 @@ renderer and Gateway boundaries. Turning low-resource mode off restores the
 supervised voice services and restores the wake listener only when it was
 registered before the mode began.
 
-The Gateway and text Chat remain running. Smart Room is asked to enter its
-separate low-power mode; its external process remains owned by Smart Room.
+The Gateway and text Chat remain running. By default, Smart Room is only asked
+to enter its separate low-power mode; its external process remains owned by
+Smart Room.
+
+The title-bar card also offers an unchecked **Fully low-resource** option for a
+manual activation. It is never selected by automatic game detection. When
+selected, Gateway invokes Smart Room's owner lifecycle, stops its crash
+supervisor, and terminates the owned runtime process tree. That releases the
+camera and every vision model rather than only disconnecting the Gateway RPC
+client. Room automations and Vision are unavailable until the manual mode is
+turned off. The card explicitly says they are closed, and the Room and Vision
+status tiles both report `closed by full low-resource mode`. If process death
+cannot be verified, activation fails and the UI must not claim they are closed.
 
 ## Dynamic Island
 

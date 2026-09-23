@@ -90,6 +90,12 @@ an active room, and disables every Voice control plus Chat dictation. Text Chat
 and the Gateway remain available. Turning the mode off restores the supervised
 voice services and the prior wake-listener preference.
 
+For a machine that needs the smallest practical footprint, manual activation
+also offers an opt-in **Fully low-resource** tier. It shuts down Smart Room's
+owned process tree, including the camera and loaded vision models, and clearly
+marks Smart Room and Vision closed until the mode is turned off. Automatic game
+detection never shuts down the room by itself.
+
 ### See only what matters
 
 The **Dynamic Island** is Marvi's glanceable home. It shows a live voice state, a concise announcement, a confirmation, or the progress of computer work. Background events do not pull the main window into focus. Quiet hours, cooldowns, presence, and Windows presentation state help Marvi choose when to speak and when to wait.

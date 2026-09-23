@@ -335,6 +335,15 @@ Marvi OS consumes:
 The existing bridge/event bus is audited before any new protocol is introduced.
 Room failures must degrade the room panel without disabling voice.
 
+Manual low-resource activation has an explicit full tier. Gateway calls the
+Smart Room plugin lifecycle owner; the plugin stops its supervisor first, asks
+the authenticated runtime to shut down, then force-terminates the owned Windows
+process tree after a bounded wait. Gateway verifies the runtime is no longer
+alive before publishing the full tier. Disabling it raises the start hook and
+restores Smart Room from its saved configuration. Automatic fullscreen/game
+detection never selects this tier, because room automations are user-visible
+behavior, not an incidental performance optimization.
+
 ## Capabilities: connectors and world context
 
 Skills, Connectors, MCP and third-party plugins are one sidebar section.

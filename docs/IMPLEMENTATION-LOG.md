@@ -2306,3 +2306,20 @@ false`, leaving Electron on a mobile-only Vibration API path. Its documented
   with `Voice not working in low-resource mode`.
 - Added Gateway, supervisor, runtime-normalization, composer, and voice-status
   regression coverage.
+
+# 2026-09-23 — Fully low-resource mode stops Smart Room and Vision
+
+- Added an explicit, default-off option to manual low-resource activation;
+  automatic game detection cannot select it.
+- Carried the selection through preload and Electron IPC into the authoritative
+  Gateway resource state. Room and Vision now report that they are closed while
+  the full tier is active, and the title-bar card says the same directly.
+- Routed shutdown through the Smart Room plugin's lifecycle owner. The plugin
+  stops its crash monitor, requests authenticated graceful shutdown, escalates
+  to a Windows process-tree kill after the deadline, and preserves failure
+  evidence if the PID remains alive.
+- Added a Gateway postcondition and rollback: a surviving runtime produces 503
+  instead of a false closed state. Disabling the tier invokes the plugin start
+  hook and restores its saved configuration.
+- Added focus-policy, Gateway lifecycle/failure, desktop contract, and plugin
+  process-termination coverage.
