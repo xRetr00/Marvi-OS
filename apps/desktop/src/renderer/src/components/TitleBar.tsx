@@ -78,7 +78,9 @@ export function TitleBar({
           >
             <button
               aria-label={t(titlebarSidebarLabel)}
-              aria-pressed={!sidebarCollapsed}
+              aria-pressed={
+                sidebarCollapsed && onBackToMainMenu ? undefined : !sidebarCollapsed
+              }
               className="titlebar-control titlebar-sidebar-toggle no-drag"
               onClick={() => {
                 haptic('selection')
